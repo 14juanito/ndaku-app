@@ -1,0 +1,5 @@
+instance/*
+!instance/.gitkeep
+seed_photos/*.jpg
+__pycache__/
+.pytest_cache/
