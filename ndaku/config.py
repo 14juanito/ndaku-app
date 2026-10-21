@@ -14,8 +14,12 @@ def _bool(name, default=False):
 class Config:
     def __init__(self, **overrides):
         env = os.environ
-        self.DATABASE_URL = env.get("DATABASE_URL") or env.get("POSTGRES_URL") or "postgresql://postgres@localhost:5433/ndaku"
         self.ON_VERCEL = bool(env.get("VERCEL"))
+        self.DATABASE_URL = env.get("DATABASE_URL") or env.get("POSTGRES_URL")
+        if not self.DATABASE_URL:
+            if self.ON_VERCEL and "DATABASE_URL" not in overrides:
+                raise RuntimeError("DATABASE_URL manquant : ajoutez la base Neon (Vercel → Storage → Neon).")
+            self.DATABASE_URL = "postgresql://postgres@localhost:5433/ndaku"
         # Cookies `Secure` + préfixe __Host- dès qu'on est en HTTPS (toujours le cas sur Vercel).
         self.SECURE_COOKIES = _bool("NDAKU_SECURE_COOKIES", self.ON_VERCEL)
         self.PUBLIC_URL = env.get("NDAKU_PUBLIC_URL") or (f"https://{env['VERCEL_PROJECT_PRODUCTION_URL']}"
