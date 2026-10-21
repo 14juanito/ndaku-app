@@ -37,7 +37,7 @@ def issue_nonce():
     raw = secrets.token_urlsafe(24)
     run("DELETE FROM oauth_nonces WHERE expires_at < now()")
     run("INSERT INTO oauth_nonces (nonce_hash, expires_at) VALUES (%s,%s)",
-        (hashlib.sha256(raw.encode()).digest(), now() + timedelta(minutes=10)))
+        (hashlib.sha256(raw.encode()).digest(), now() + timedelta(minutes=30)))
     return raw
 
 

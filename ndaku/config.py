@@ -32,7 +32,7 @@ class Config:
         self.CRON_SECRET = env.get("CRON_SECRET")
         self.SESSION_DAYS = int(env.get("SESSION_DAYS", "30"))
         self.LOCAL_UPLOADS = env.get("NDAKU_UPLOADS", os.path.join(os.path.dirname(os.path.dirname(__file__)), "instance", "uploads"))
-        self.TRUST_PROXY = self.ON_VERCEL or _bool("NDAKU_TRUST_PROXY")
+        self.TRUST_PROXY = _bool("NDAKU_TRUST_PROXY")
         for k, v in overrides.items():
             setattr(self, k, v)
 

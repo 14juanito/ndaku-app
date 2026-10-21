@@ -259,3 +259,20 @@ def test_security_headers(client):
         assert h in r.headers
     assert "frame-ancestors 'none'" in r.headers["Content-Security-Policy"]
     assert r.headers["Cache-Control"] == "no-store"
+
+
+def test_trusted_proxy_uses_rightmost_forwarded_for(app):
+    from ndaku.security import client_ip
+    app.config["NDAKU"].TRUST_PROXY = True
+    with app.test_request_context(headers={"X-Forwarded-For": "6.6.6.6, 41.243.1.2"}):
+        assert client_ip() == "41.243.1.2"  # l'entrée de gauche est contrôlée par le client
+
+
+def test_forgot_password_constant_minimum_time(client, monkeypatch):
+    from ndaku import auth
+    monkeypatch.setattr(auth, "FORGOT_MIN_SECONDS", 0.4)
+    register(client, "real@x.cd")
+    for email in ("real@x.cd", "ghost@x.cd"):
+        t = time.monotonic()
+        client.post("/api/auth/password/forgot", json={"email": email})
+        assert time.monotonic() - t >= 0.4

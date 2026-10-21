@@ -231,3 +231,38 @@ def test_admin_moderation_flow(two_hosts, new_client, keys):
     r = boss.post("/api/admin/demo", json={"source": "illustrations"})
     assert r.status_code == 200 and len(r.json["created"]) == 3
     _ = io
+
+
+def test_owner_cannot_delete_listing_under_moderation(two_hosts):
+    """Sinon un fraudeur signalé efface l'annonce, libère ses photos volées et republie aussitôt."""
+    a, b = two_hosts
+    lid = publish(a, [1, 2, 3]).json["id"]
+    from conftest import DB
+    from ndaku.db import pool
+    with pool(DB).connection() as con:
+        con.execute("UPDATE listings SET status='pending' WHERE id=%s", (lid,))
+    assert a.delete(f"/api/listings/{lid}").status_code == 400
+    assert upload(b, 1).status_code == 422  # les photos restent bannies
+
+
+def test_boolean_image_ids_and_contact_in_address(two_hosts):
+    a, _ = two_hosts
+    ids = [upload(a, s).json["id"] for s in (1, 2, 3)]
+    assert a.post("/api/listings", json=listing_payload([True, 2, 3])).status_code == 400
+    assert a.post("/api/listings", json=listing_payload(ids, address="Appelez 0812345678")).status_code == 400
+
+
+def test_demo_import_skips_failures_and_continues(app, monkeypatch, client):
+    from ndaku import demo
+    calls = []
+
+    def fake_candidates(city, want):
+        calls.append(city)
+        return []  # aucune photo libre trouvée pour aucune ville
+    monkeypatch.setattr(demo, "commons_candidates", fake_candidates)
+    with app.test_request_context():
+        res = demo.create_demo(app.config["STORAGE"], source="commons", max_listings=3)
+        from ndaku.db import close
+        close(None)
+    assert res["done"] and not res["created"] and len(res["skipped"]) == len(demo.LISTINGS)
+    assert set(calls) == {x[0] for x in demo.LISTINGS}  # toutes les villes tentées, pas seulement les 3 premières

@@ -99,21 +99,25 @@ async function oauthDone(provider, payload, role) {
   try {
     const r = await api(`/api/auth/oauth/${provider}`, { json: { ...payload, role } });
     state.user = r.user; closeModal(); renderHeader(); route(); toast(`Bienvenue ${r.user.name} !`);
-  } catch (err) { const e = $("#authErr"); if (e) e.textContent = err.message; else toast(err.message); }
+    return true;
+  } catch (err) { const e = $("#authErr"); if (e) e.textContent = err.message; else toast(err.message); return false; }
 }
 async function mountSocial(box, getRole) {
   const c = state.auth;
   if (!c.google_client_id && !c.apple_client_id) { box.remove(); return; }
   const gDiv = box.querySelector("#g-btn"), aBtn = box.querySelector("#apple-btn");
-  if (c.google_client_id) {
+  const mountGoogle = async () => {
     try {
       const { nonce } = await api("/api/auth/nonce");
       await loadScript("https://accounts.google.com/gsi/client");
+      gDiv.innerHTML = "";
       google.accounts.id.initialize({ client_id: c.google_client_id, nonce, ux_mode: "popup", use_fedcm_for_button: true,
-        callback: r => oauthDone("google", { credential: r.credential, nonce }, getRole()) });
+        // Nonce à usage unique : en cas d'échec (nonce expiré…), on en redemande un et on remonte le bouton.
+        callback: async r => { if (!await oauthDone("google", { credential: r.credential, nonce }, getRole()) && box.isConnected) mountGoogle(); } });
       google.accounts.id.renderButton(gDiv, { theme: "outline", size: "large", shape: "pill", text: "continue_with", width: Math.min(gDiv.clientWidth || 360, 400), locale: "fr" });
     } catch { gDiv.textContent = "Google indisponible pour le moment."; }
-  } else gDiv.remove();
+  };
+  if (c.google_client_id) mountGoogle(); else gDiv.remove();
   if (c.apple_client_id) {
     aBtn.onclick = async () => {
       try {

@@ -1,5 +1,6 @@
 """Comptes : e-mail + mot de passe, Google, Apple (iCloud). Sessions web (cookie) et mobiles (Bearer)."""
 import secrets
+import time
 from datetime import timedelta
 
 from flask import Blueprint, abort, jsonify, request
@@ -176,15 +177,20 @@ def resend_verification():
     return jsonify(ok=True)
 
 
+FORGOT_MIN_SECONDS = 2.0
+
+
 @bp.post("/password/forgot")
 def forgot():
+    started = time.monotonic()
     rate_limit(f"forgot:{client_ip()}", 5, 3600)
     email = text(body(), "email", 120).lower()
     u = one("SELECT * FROM users WHERE lower(email)=%s", (email,))
     if u:
         rate_limit(f"forgot-user:{u['id']}", 3, 3600)
         send_token_mail(u, "reset")
-    # Même réponse que le compte existe ou non (pas d'énumération).
+    # Même réponse ET même durée minimale que le compte existe ou non (pas d'énumération par le temps).
+    time.sleep(max(0.0, FORGOT_MIN_SECONDS - (time.monotonic() - started)))
     return jsonify(ok=True, message="Si un compte existe, un e-mail vient d'être envoyé.")
 
 

@@ -8,13 +8,15 @@
 import json
 import random
 import re
+import time
 import urllib.parse
 import urllib.request
 
 from PIL import Image, ImageDraw, ImageFilter
 
 from . import antifraud as af
-from .db import all_, one, run
+from . import photos
+from .db import all_, db, one, run
 
 UA = {"User-Agent": "NdakuDemo/1.0 (https://github.com/14juanito/ndaku-app)"}
 API = "https://commons.wikimedia.org/w/api.php"
@@ -62,7 +64,7 @@ PHOTOS_PER_LISTING = 3
 
 
 # ---------------------------------------------------------------- Wikimedia Commons
-def _get(url, timeout=20):
+def _get(url, timeout=10):
     with urllib.request.urlopen(urllib.request.Request(url, headers=UA), timeout=timeout) as r:
         return r.read()
 
@@ -153,21 +155,11 @@ def render_house(seed, w=1200, h=800):
 
 
 # ------------------------------------------------------------------- création
-def _store_photo(storage, owner_id, img, credit):
-    fp = af.fingerprint(img)
-    s = {k: af.signed64(fp[k]) for k in ("dhash", "phash", "dhash_m", "phash_m")}
-    clash = one("""SELECT 1 FROM images WHERE sha=%(sha)s
-                   OR (bit_count((dhash # %(d)s)::bit(64)) <= %(dmax)s AND bit_count((phash # %(p)s)::bit(64)) <= %(pmax)s)
-                   OR (bit_count((dhash # %(dm)s)::bit(64)) <= %(dmax)s AND bit_count((phash # %(pm)s)::bit(64)) <= %(pmax)s)
-                   LIMIT 1""", {"sha": fp["sha"], "d": s["dhash"], "p": s["phash"], "dm": s["dhash_m"],
-                                "pm": s["phash_m"], "dmax": af.DHASH_MAX, "pmax": af.PHASH_MAX})
-    if clash:
+def _store_photo(owner_id, img, credit):
+    try:
+        return photos.save(owner_id, img, credit)["id"]
+    except photos.Duplicate:
         return None  # même règle que pour les hôtes : jamais deux fois la même photo
-    url, key = storage.put(af.to_jpeg(img))
-    return one("""INSERT INTO images (owner_id, url, storage_key, sha, dhash, phash, dhash_m, phash_m, credit)
-                  VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id""",
-               (owner_id, url, key, fp["sha"], s["dhash"], s["phash"], s["dhash_m"], s["phash_m"],
-                json.dumps(credit) if credit else None))["id"]
 
 
 def demo_host(n):
@@ -179,41 +171,45 @@ def demo_host(n):
                   RETURNING id""", (["Jean M. (démo)", "Grace K. (démo)", "Patrick I. (démo)"][n % 3], email))["id"]
 
 
-def create_demo(storage, source="illustrations", max_listings=4, status=None):
-    """Crée jusqu'à `max_listings` annonces de démo manquantes. Idempotent ; à rappeler jusqu'à done=True."""
+def create_demo(storage, source="illustrations", max_listings=4, status=None, budget_s=40.0):
+    """Crée jusqu'à `max_listings` annonces de démo manquantes, dans un budget de temps (limite des
+    fonctions Vercel). Chaque annonce est validée dès sa création. Idempotent : rappeler jusqu'à done."""
     status = status or ("pending" if source == "commons" else "active")
+    deadline = time.monotonic() + budget_s
     existing = {r["title"] for r in all_("SELECT title FROM listings WHERE is_demo")}
     todo = [x for x in LISTINGS if x[4] not in existing]
-    created, skipped = [], []
-    pool = {}
-    for i, (city, com, deal, pt, title, price, bed, bath, m2, furn, addr) in enumerate(todo[:max_listings]):
-        idx = LISTINGS.index(next(x for x in LISTINGS if x[4] == title))
+    created, skipped, pool, attempted = [], [], {}, 0
+    for city, com, deal, pt, title, price, bed, bath, m2, furn, addr in todo:
+        if len(created) >= max_listings or time.monotonic() > deadline:
+            break
+        attempted += 1
+        idx = next(i for i, x in enumerate(LISTINGS) if x[4] == title)
         owner = demo_host(idx % 3)
         photo_ids = []
         if source == "commons":
             if city not in pool:
-                pool[city] = commons_candidates(city, 40)
                 used = {r["t"] for r in all_("SELECT credit->>'title' AS t FROM images WHERE credit IS NOT NULL")}
-                pool[city] = [c for c in pool[city] if c["title"] not in used]
-            while pool[city] and len(photo_ids) < PHOTOS_PER_LISTING:
+                pool[city] = [c for c in commons_candidates(city, 40) if c["title"] not in used]
+            while pool[city] and len(photo_ids) < PHOTOS_PER_LISTING and time.monotonic() < deadline:
                 c = pool[city].pop(0)
                 try:
-                    img = af.load_image(_get(c["url"], 30))
+                    img = af.load_image(_get(c["url"], 15))
                 except (OSError, af.ImageRejected):
                     continue
-                pid = _store_photo(storage, owner, img, {k: c[k] for k in ("title", "page", "license", "author")})
+                pid = _store_photo(owner, img, {k: c[k] for k in ("title", "page", "license", "author")})
                 if pid:
                     photo_ids.append(pid)
         else:
             k = 0
             while len(photo_ids) < PHOTOS_PER_LISTING and k < 50:
                 k += 1
-                pid = _store_photo(storage, owner, render_house(idx * 1000 + k + 7), None)
+                pid = _store_photo(owner, render_house(idx * 1000 + k + 7), None)
                 if pid:
                     photo_ids.append(pid)
         if len(photo_ids) < PHOTOS_PER_LISTING:
             if photo_ids:
                 gone = all_("DELETE FROM images WHERE id = ANY(%s) RETURNING storage_key", (photo_ids,))
+                db().commit()
                 storage.delete([g["storage_key"] for g in gone])
             skipped.append(f"{title} : pas assez de photos libres trouvées pour {city}")
             continue
@@ -229,9 +225,8 @@ def create_demo(storage, source="illustrations", max_listings=4, status=None):
                    json.dumps(r.choice(AMS)), status, af.addr_key(city, com, addr)))["id"]
         for pos, pid in enumerate(photo_ids):
             run("UPDATE images SET listing_id=%s, position=%s WHERE id=%s", (lid, pos, pid))
+        db().commit()
         created.append(title)
-    remaining = max(0, len(todo) - len(created) - len(skipped))
-    # Terminé quand le lot couvrait tout, ou quand plus rien ne peut être créé (photos épuisées).
-    return {"created": created, "skipped": skipped, "remaining": remaining,
-            "done": len(todo) <= max_listings or not created}
-
+    # Terminé quand toute la liste a été tentée dans cet appel (les échecs ne bloquent pas la suite).
+    done = attempted == len(todo)
+    return {"created": created, "skipped": skipped, "remaining": len(todo) - len(created), "done": done}

@@ -27,9 +27,15 @@ def sha(token: str) -> bytes:
 
 
 def client_ip():
-    # Sur Vercel, x-real-ip est posé par la plateforme (non falsifiable par le client).
-    if cfg().TRUST_PROXY:
-        return (request.headers.get("x-real-ip") or request.headers.get("x-forwarded-for", "").split(",")[0]).strip()[:64]
+    c = cfg()
+    if c.ON_VERCEL:
+        # Vercel écrase x-real-ip avec l'IP du client : valeur non falsifiable.
+        return (request.headers.get("x-real-ip") or request.remote_addr or "")[:64]
+    if c.TRUST_PROXY:
+        # Derrière un proxy de confiance qui AJOUTE à X-Forwarded-For : seule l'entrée la plus à droite
+        # est fiable ; celles de gauche sont fournies par le client.
+        xff = [x.strip() for x in request.headers.get("x-forwarded-for", "").split(",") if x.strip()]
+        return (xff[-1] if xff else request.remote_addr or "")[:64]
     return (request.remote_addr or "")[:64]
 
 

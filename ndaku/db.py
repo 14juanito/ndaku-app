@@ -12,23 +12,38 @@ _pools = {}
 _lock = threading.Lock()
 
 
-def pool(url):
+def pool(url, side=False):
+    """side=True : pool séparé pour les écritures hors transaction (committed), afin qu'une requête
+    qui tient déjà une connexion n'attende jamais une seconde connexion du même pool."""
+    key = (url, side)
     with _lock:
-        p = _pools.get(url)
+        p = _pools.get(key)
         if p is None:
             # prepare_threshold=None : compatible avec le pooler PgBouncer de Neon (mode transaction).
             p = ConnectionPool(url, min_size=0, max_size=int(os.environ.get("DB_POOL_MAX", "5")),
                                kwargs={"row_factory": dict_row, "prepare_threshold": None, "autocommit": False},
                                check=ConnectionPool.check_connection, open=True)
-            _pools[url] = p
+            _pools[key] = p
             atexit.register(p.close)
         return p
 
 
+SCHEMA_VERSION = 2  # à incrémenter à chaque modification de schema.sql
+
+
 def migrate(url):
+    """Rejoue schema.sql seulement si la base est en retard : un démarrage à froid ne coûte qu'un SELECT
+    et ne prend aucun verrou DDL sur les tables."""
     with pool(url).connection() as con:
+        if con.execute("SELECT to_regclass('public.schema_meta') AS t").fetchone()["t"]:
+            row = con.execute("SELECT version FROM schema_meta").fetchone()
+            if row and row["version"] >= SCHEMA_VERSION:
+                return
         con.execute("SELECT pg_advisory_xact_lock(424242)")
         con.execute(open(_SCHEMA).read())
+        con.execute("CREATE TABLE IF NOT EXISTS schema_meta (version INT NOT NULL)")
+        con.execute("DELETE FROM schema_meta")
+        con.execute("INSERT INTO schema_meta VALUES (%s)", (SCHEMA_VERSION,))
 
 
 def db():
@@ -67,6 +82,6 @@ def run(sql, args=()):
 def committed(sql, args=()):
     """Écriture validée immédiatement, hors transaction de la requête : survit à un abort()
     (compteurs anti-brute-force, journal d'audit)."""
-    with pool(current_app.config["NDAKU"].DATABASE_URL).connection() as con:
+    with pool(current_app.config["NDAKU"].DATABASE_URL, side=True).connection() as con:
         cur = con.execute(sql, args)
         return cur.fetchone() if cur.description else None

@@ -5,6 +5,7 @@ from datetime import date, timedelta
 from flask import Blueprint, abort, current_app, jsonify, request
 
 from . import antifraud as af
+from . import photos
 from .auth import body, text
 from .db import all_, one, run
 from .security import current_user, now, rate_limit, require
@@ -143,14 +144,6 @@ def get_listing(lid):
 
 
 # --------------------------------------------------------------------------- photos
-DUP_SQL = """
-SELECT i.id, i.owner_id, i.listing_id, i.sha = %(sha)s AS exact FROM images i
-WHERE i.sha = %(sha)s
-   OR (bit_count((i.dhash # %(d)s)::bit(64)) <= %(dmax)s AND bit_count((i.phash # %(p)s)::bit(64)) <= %(pmax)s)
-   OR (bit_count((i.dhash # %(dm)s)::bit(64)) <= %(dmax)s AND bit_count((i.phash # %(pm)s)::bit(64)) <= %(pmax)s)
-ORDER BY exact DESC LIMIT 1"""
-
-
 @bp.post("/uploads")
 @require("host", verified_email=True)
 def upload():
@@ -167,21 +160,13 @@ def upload():
         img = af.load_image(f.read())
     except af.ImageRejected as e:
         abort(422, str(e))
-    fp = af.fingerprint(img)
-    s = {k: af.signed64(fp[k]) for k in ("dhash", "phash", "dhash_m", "phash_m")}
-    # Sérialise les uploads : deux photos quasi identiques envoyées en même temps ne passent pas toutes les deux.
-    run("SELECT pg_advisory_xact_lock(7001)")
-    clash = one(DUP_SQL, {"sha": fp["sha"], "d": s["dhash"], "p": s["phash"], "dm": s["dhash_m"],
-                          "pm": s["phash_m"], "dmax": af.DHASH_MAX, "pmax": af.PHASH_MAX})
-    if clash:
-        mine = clash["owner_id"] == u["id"]
-        where = ("l'une de vos annonces" if clash["listing_id"] else "vos photos en attente") if mine else "une autre annonce"
-        kind = "copie exacte" if clash["exact"] else "image quasi identique : recadrage, miroir ou retouche"
+    try:
+        row = photos.save(u["id"], img)
+    except photos.Duplicate as d:
+        mine = d.clash["owner_id"] == u["id"]
+        where = ("l'une de vos annonces" if d.clash["listing_id"] else "vos photos en attente") if mine else "une autre annonce"
+        kind = "copie exacte" if d.clash["exact"] else "image quasi identique : recadrage, miroir ou retouche"
         abort(422, f"Photo déjà utilisée dans {where} ({kind}).")
-    url, key = storage().put(af.to_jpeg(img))
-    row = one("""INSERT INTO images (owner_id, url, storage_key, sha, dhash, phash, dhash_m, phash_m)
-                 VALUES (%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id, url""",
-              (u["id"], url, key, fp["sha"], s["dhash"], s["phash"], s["dhash_m"], s["phash_m"]))
     return jsonify(row), 201
 
 
@@ -238,7 +223,7 @@ def create_listing():
         abort(429, f"Limite de {MAX_LISTINGS_PER_DAY} annonces par 24 h atteinte.")
     data = parse_listing(d)
 
-    for field in ("title", "description"):
+    for field in ("title", "description", "address"):
         hit = af.find_contact_info(data[field])
         if hit:
             abort(400, f"Coordonnées interdites dans « {field} » ({hit}). Les échanges doivent rester sur Ndaku.")
@@ -251,7 +236,8 @@ def create_listing():
         abort(409, "Vous avez déjà une annonce active pour cette adresse.")
 
     ids = d.get("image_ids")
-    if not isinstance(ids, list) or not all(isinstance(i, int) for i in ids) or len(set(ids)) != len(ids):
+    if (not isinstance(ids, list) or not all(isinstance(i, int) and not isinstance(i, bool) for i in ids)
+            or len(set(ids)) != len(ids)):
         abort(400, "Liste de photos invalide.")
     if not MIN_IMAGES <= len(ids) <= MAX_IMAGES:
         abort(400, f"Ajoutez entre {MIN_IMAGES} et {MAX_IMAGES} photos.")
@@ -308,8 +294,10 @@ def patch_listing(lid):
 @require()
 def delete_listing(lid):
     r = owned_listing(lid)
-    if r["status"] == "rejected" and current_user()["role"] != "admin":
-        abort(400, "Une annonce rejetée par la modération est conservée (ses photos restent bannies).")
+    if r["status"] in ("rejected", "pending") and current_user()["role"] != "admin":
+        # Une annonce signalée ou en modération ne peut pas être effacée par son auteur :
+        # sinon il libérerait ses photos et l'adresse pour republier aussitôt.
+        abort(400, "Annonce en cours de modération ou rejetée : elle ne peut pas être supprimée.")
     keys = [x["storage_key"] for x in all_("SELECT storage_key FROM images WHERE listing_id=%s", (lid,))]
     run("DELETE FROM listings WHERE id=%s", (lid,))
     storage().delete(keys)

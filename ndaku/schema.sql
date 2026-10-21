@@ -148,5 +148,5 @@ CREATE TABLE IF NOT EXISTS security_events (          -- journal d'audit (connex
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- Migrations additives (bases déjà créées)
+-- Migrations additives (bases déjà créées) — incrémenter SCHEMA_VERSION dans db.py
 ALTER TABLE listings ADD COLUMN IF NOT EXISTS is_demo BOOLEAN NOT NULL DEFAULT FALSE;

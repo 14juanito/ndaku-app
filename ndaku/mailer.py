@@ -17,7 +17,7 @@ def send(cfg, to, subject, text):
         data=json.dumps({"from": cfg.MAIL_FROM, "to": [to], "subject": subject, "text": text}).encode(),
         headers={"Authorization": f"Bearer {cfg.RESEND_API_KEY}", "Content-Type": "application/json"})
     try:
-        with urllib.request.urlopen(req, timeout=8):
+        with urllib.request.urlopen(req, timeout=1.5):
             return True
     except OSError as e:
         log.error("Échec d'envoi d'e-mail : %s", e)
