@@ -91,29 +91,88 @@ function togglePop() {
 document.addEventListener("click", closePop);
 
 /* ------------------------------------------------------------------- auth */
+const loadScript = src => new Promise((ok, ko) => {
+  if (document.querySelector(`script[src="${src}"]`)) return ok();
+  const s = document.createElement("script"); s.src = src; s.async = true; s.onload = ok; s.onerror = ko; document.head.append(s);
+});
+async function oauthDone(provider, payload, role) {
+  try {
+    const r = await api(`/api/auth/oauth/${provider}`, { json: { ...payload, role } });
+    state.user = r.user; closeModal(); renderHeader(); route(); toast(`Bienvenue ${r.user.name} !`);
+  } catch (err) { const e = $("#authErr"); if (e) e.textContent = err.message; else toast(err.message); }
+}
+async function mountSocial(box, getRole) {
+  const c = state.auth;
+  if (!c.google_client_id && !c.apple_client_id) { box.remove(); return; }
+  const gDiv = box.querySelector("#g-btn"), aBtn = box.querySelector("#apple-btn");
+  if (c.google_client_id) {
+    try {
+      const { nonce } = await api("/api/auth/nonce");
+      await loadScript("https://accounts.google.com/gsi/client");
+      google.accounts.id.initialize({ client_id: c.google_client_id, nonce, ux_mode: "popup", use_fedcm_for_button: true,
+        callback: r => oauthDone("google", { credential: r.credential, nonce }, getRole()) });
+      google.accounts.id.renderButton(gDiv, { theme: "outline", size: "large", shape: "pill", text: "continue_with", width: Math.min(gDiv.clientWidth || 360, 400), locale: "fr" });
+    } catch { gDiv.textContent = "Google indisponible pour le moment."; }
+  } else gDiv.remove();
+  if (c.apple_client_id) {
+    aBtn.onclick = async () => {
+      try {
+        const { nonce } = await api("/api/auth/nonce");
+        await loadScript("https://appleid.cdn-apple.com/appleauth/static/jsapi/appleid/1/fr_FR/appleid.auth.js");
+        AppleID.auth.init({ clientId: c.apple_client_id, scope: "name email", redirectURI: c.apple_redirect_uri, usePopup: true, nonce });
+        const r = await AppleID.auth.signIn();
+        const n = r.user?.name; const name = n ? `${n.firstName || ""} ${n.lastName || ""}`.trim() : "";
+        oauthDone("apple", { id_token: r.authorization.id_token, nonce, name }, getRole());
+      } catch (err) { if (err?.error !== "popup_closed_by_user") toast("Connexion Apple annulée ou indisponible."); }
+    };
+  } else aBtn.remove();
+}
 function authModal(mode = "login", role = "client") {
   const reg = mode === "signup";
   const m = modal(reg ? "Inscription" : "Connexion", `
     <div class="tabs"><button class="${reg ? "" : "on"}" data-act="login">Connexion</button><button class="${reg ? "on" : ""}" data-act="signup">Inscription</button></div>
     <h2>Bienvenue sur Ndaku</h2>
+    ${reg ? `<div class="seg-pick"><label><input type="radio" name="role" value="client" ${role === "client" ? "checked" : ""}><b>Client</b><span>Je cherche à louer ou acheter</span></label>
+      <label><input type="radio" name="role" value="host" ${role === "host" ? "checked" : ""}><b>Hôte</b><span>Je propose un bien</span></label></div>` : ""}
+    <div class="social" id="social"><div id="g-btn" class="g-btn"></div>
+      <button type="button" class="btn apple block" id="apple-btn"><svg width="16" height="18" viewBox="0 0 17 20" fill="currentColor" aria-hidden="true"><path d="M14.100 10.600c0-2.600 2.100-3.800 2.200-3.900-1.200-1.800-3.100-2-3.700-2-1.600-.2-3.100.9-3.900.9-.8 0-2-.9-3.400-.9C3.500 4.700 1.800 5.800.9 7.400c-1.900 3.300-.5 8.100 1.300 10.700.9 1.300 2 2.700 3.300 2.700 1.300-.1 1.800-.9 3.400-.9s2 .9 3.400.8c1.400 0 2.300-1.300 3.200-2.600 1-1.500 1.400-2.900 1.400-3-.1 0-2.800-1-2.800-4.100zM11.600 3c.7-.9 1.200-2 1.100-3.200-1 0-2.300.7-3 1.600-.7.700-1.200 2-1.100 3.100 1.100.1 2.300-.6 3-1.500z"/></svg> Continuer avec Apple</button>
+      <div class="or"><span>ou avec votre e-mail</span></div></div>
     <form id="authForm" novalidate>
-      ${reg ? `<div class="seg-pick"><label><input type="radio" name="role" value="client" ${role === "client" ? "checked" : ""}><b>Client</b><span>Je cherche à louer ou acheter</span></label>
-        <label><input type="radio" name="role" value="host" ${role === "host" ? "checked" : ""}><b>Hôte</b><span>Je propose un bien</span></label></div>
-        <div class="field"><label for="a-name">Nom complet</label><input id="a-name" name="name" autocomplete="name" required></div>` : ""}
-      <div class="field"><label for="a-mail">E-mail</label><input id="a-mail" name="email" type="email" autocomplete="email" required></div>
-      ${reg ? `<div class="field"><label for="a-tel">Téléphone (optionnel)</label><input id="a-tel" name="phone" type="tel" autocomplete="tel"></div>` : ""}
-      <div class="field"><label for="a-pw">Mot de passe</label><input id="a-pw" name="password" type="password" autocomplete="${reg ? "new" : "current"}-password" required>${reg ? '<span class="hint">8 caractères min., une majuscule et un chiffre.</span>' : ""}</div>
+      ${reg ? `<div class="field"><label for="a-name">Nom complet</label><input id="a-name" name="name" autocomplete="name" required maxlength="80"></div>` : ""}
+      <div class="field"><label for="a-mail">E-mail</label><input id="a-mail" name="email" type="email" autocomplete="email" required maxlength="120"></div>
+      ${reg ? `<div class="field"><label for="a-tel">Téléphone (optionnel, visible seulement des hôtes que vous contactez)</label><input id="a-tel" name="phone" type="tel" autocomplete="tel" maxlength="30"></div>` : ""}
+      <div class="field"><label for="a-pw">Mot de passe</label><input id="a-pw" name="password" type="password" autocomplete="${reg ? "new" : "current"}-password" required maxlength="128">${reg ? '<span class="hint">10 caractères min., majuscule, minuscule et chiffre.</span>' : '<button type="button" class="linkish" data-act="forgot">Mot de passe oublié ?</button>'}</div>
       <div class="err" id="authErr" role="alert"></div>
       <button class="btn block">${reg ? "Créer mon compte" : "Continuer"}</button>
     </form>`);
+  const getRole = () => m.querySelector('input[name="role"]:checked')?.value || "client";
+  mountSocial(m.querySelector("#social"), getRole);
   m.querySelector("#authForm").onsubmit = async e => {
     e.preventDefault();
     const d = Object.fromEntries(new FormData(e.target));
+    if (reg) d.role = getRole();
     try {
-      const r = await api(reg ? "/api/register" : "/api/login", { json: d });
-      state.user = r.user; closeModal(); renderHeader(); route(); toast(`Bienvenue ${r.user.name} !`);
+      const r = await api(reg ? "/api/auth/register" : "/api/auth/login", { json: d });
+      state.user = r.user; closeModal(); renderHeader(); route();
+      toast(reg && !r.user.email_verified ? "Compte créé ! Confirmez votre e-mail via le lien reçu." : `Bienvenue ${r.user.name} !`);
     } catch (err) { $("#authErr").textContent = err.message; }
   };
+}
+function forgotModal() {
+  const m = modal("Mot de passe oublié", `<form id="fg"><p>Saisissez votre e-mail : si un compte existe, vous recevrez un lien de réinitialisation.</p>
+    <div class="field"><label for="f-mail">E-mail</label><input id="f-mail" name="email" type="email" required></div><button class="btn block">Envoyer le lien</button></form>`);
+  m.querySelector("#fg").onsubmit = async e => { e.preventDefault(); try { const r = await api("/api/auth/password/forgot", { json: Object.fromEntries(new FormData(e.target)) }); closeModal(); toast(r.message); } catch (x) { toast(x.message); } };
+}
+async function verifyPage(params) {
+  try { await api("/api/auth/verify-email", { json: { token: params.token } }); const r = await api("/api/auth/me"); state.user = r.user; renderHeader();
+    $("#view").innerHTML = `<div class="wrap empty"><h3>Adresse e-mail confirmée ✓</h3><a class="btn" href="#/">Continuer</a></div>`; }
+  catch (x) { $("#view").innerHTML = `<div class="wrap empty"><h3>${esc(x.message)}</h3><a class="btn" href="#/">Accueil</a></div>`; }
+}
+function resetPage(params) {
+  $("#view").innerHTML = `<div class="wrap page"><form class="form" id="rs" style="max-width:420px"><h1>Nouveau mot de passe</h1>
+    <div class="field"><label for="r-pw">Mot de passe</label><input id="r-pw" name="password" type="password" autocomplete="new-password" required maxlength="128"><span class="hint">10 caractères min., majuscule, minuscule et chiffre.</span></div>
+    <div class="err" id="rsErr" role="alert"></div><button class="btn block">Enregistrer</button></form></div>`;
+  $("#rs").onsubmit = async e => { e.preventDefault(); try { await api("/api/auth/password/reset", { json: { token: params.token, password: e.target.password.value } }); toast("Mot de passe modifié. Connectez-vous."); go("#/"); authModal("login"); } catch (x) { $("#rsErr").textContent = x.message; } };
 }
 
 /* ---------------------------------------------------------------- routing */
@@ -137,6 +196,8 @@ async function route() {
     if (path === "/new") return await newListing();
     if (path === "/favorites") return await favorites();
     if (path === "/messages") return await messages();
+    if (path === "/verify") return await verifyPage(params);
+    if (path === "/reset") return resetPage(params);
     if (path === "/admin") return await admin();
     view.innerHTML = `<div class="wrap empty"><h3>Page introuvable</h3><a class="btn" href="#/">Retour à l'accueil</a></div>`;
   } catch (e) {
@@ -153,9 +214,9 @@ function renderCats() {
 function cardHtml(l, top) {
   const loc = l.commune === l.city ? l.city : `${l.commune}, ${l.city}`;
   return `<a class="card" href="#/listing/${l.id}">
-    <div class="ph">${l.cover ? `<img loading="lazy" src="/uploads/${esc(l.cover)}" alt="${esc(l.title)}">` : ""}
+    <div class="ph">${l.cover ? `<img loading="lazy" src="${esc(l.cover)}" alt="${esc(l.title)}">` : ""}
       <button class="heart ${l.favorite ? "on" : ""}" data-fav="${l.id}" aria-label="Ajouter aux favoris" aria-pressed="${l.favorite}">${I.heart}</button>
-      ${top ? '<span class="badge">Coup de cœur</span>' : `<span class="badge deal">${l.deal === "location" ? "À louer" : "À vendre"}</span>`}</div>
+      ${l.is_demo ? '<span class="badge demo">Démo</span>' : top ? '<span class="badge">Coup de cœur</span>' : `<span class="badge deal">${l.deal === "location" ? "À louer" : "À vendre"}</span>`}</div>
     <div class="row"><b>${esc(loc)}</b><span class="rt">${l.rating ? I.star + Number(l.rating).toFixed(1) : "Nouveau"}</span></div>
     <div class="m">${esc(l.title)}</div>
     <div class="m">${l.ptype === "terrain" ? "Terrain" : cap(l.ptype) + " · " + l.bedrooms + " ch."} · ${l.surface} m²</div>
@@ -198,12 +259,14 @@ async function detail(id) {
     <h1>${esc(l.title)}</h1>
     <div class="meta"><span class="rt">${l.rating ? I.star + " <b style='color:var(--ink)'>" + Number(l.rating).toFixed(1) + "</b> · " + l.reviews_count + " avis" : "Pas encore d'avis"}</span>
       <span>· ${esc(l.commune)}, ${esc(l.city)}</span><span style="margin-left:auto"><button class="btn ghost sm" data-fav="${l.id}" aria-pressed="${l.favorite}">${l.favorite ? "♥ Enregistré" : "♡ Enregistrer"}</button></span></div>
-    <div class="gal n${n}" data-act="lightbox">${imgs.slice(0, 5).map((s, i) => `<img src="/uploads/${esc(s)}" alt="Photo ${i + 1} : ${esc(l.title)}" data-i="${i}">`).join("")}</div>
+    <div class="gal n${n}" data-act="lightbox">${imgs.slice(0, 5).map((s, i) => `<img src="${esc(s)}" alt="Photo ${i + 1} : ${esc(l.title)}" data-i="${i}">`).join("")}</div>
     <div class="dt-body"><div>
       <div class="block-sec"><div class="hostrow"><span class="avatar on">${esc(l.host.name[0])}</span><div><h2 style="margin:0;font-size:18px">${cap(l.ptype)} ${l.deal === "location" ? "à louer" : "à vendre"} · hôte : ${esc(l.host.name)}</h2>
         ${l.host.verified ? `<span class="verif">${I.check} Hôte vérifié par Ndaku</span>` : '<span class="unverif">Hôte non encore vérifié : ne payez rien avant la visite.</span>'}</div></div>
         <div class="specs" style="margin-top:14px"><span>${l.bedrooms} chambre${l.bedrooms > 1 ? "s" : ""}</span><span>· ${l.bathrooms} salle${l.bathrooms > 1 ? "s" : ""} de bain</span><span>· ${l.surface} m²</span>${l.furnished ? "<span>· Meublé</span>" : ""}</div></div>
-      <div class="block-sec"><h2>À propos de ce bien</h2><div class="desc">${esc(l.description)}</div><p class="hint">Adresse : ${esc(l.address)}, ${esc(l.commune)}</p></div>
+      ${l.is_demo ? '<div class="notice warn" style="margin-top:16px">Annonce de <b>démonstration</b> : le bien n\'est pas réellement disponible.</div>' : ""}
+      <div class="block-sec"><h2>À propos de ce bien</h2><div class="desc">${esc(l.description)}</div><p class="hint">Adresse : ${esc(l.address)}, ${esc(l.commune)}</p>
+        ${l.credits?.length ? `<p class="hint">Photos : ${l.credits.map(c => `${/^https:\/\/commons\.wikimedia\.org\//.test(c.page || "") ? `<a href="${esc(c.page)}" target="_blank" rel="noopener noreferrer">${esc(c.author)}</a>` : esc(c.author)} (${esc(c.license)})`).join(" · ")}, via Wikimedia Commons</p>` : ""}</div>
       ${l.amenities.length ? `<div class="block-sec"><h2>Équipements</h2><div class="am-grid">${l.amenities.map(a => `<div>${I.check} ${esc(a)}</div>`).join("")}</div></div>` : ""}
       <div class="block-sec"><h2>${l.reviews_count ? `${I.star} ${Number(l.rating).toFixed(1)} · ${l.reviews_count} avis vérifiés` : "Avis"}</h2>
         ${l.reviews.map(r => `<div class="rev"><div class="who">${esc(r.name)} <span class="stars">${"★".repeat(r.rating)}${"☆".repeat(5 - r.rating)}</span></div><time>${when(r.created_at)}</time><div>${esc(r.comment)}</div></div>`).join("") || '<p class="hint">Aucun avis pour le moment.</p>'}
@@ -228,9 +291,9 @@ async function detail(id) {
 function lightbox(i) {
   const imgs = window.__imgs; if (!imgs) return;
   let k = +i || 0;
-  const m = modal(`Photo ${k + 1} / ${imgs.length}`, `<img src="/uploads/${esc(imgs[k])}" alt="">`, "lightbox");
+  const m = modal(`Photo ${k + 1} / ${imgs.length}`, `<img src="${esc(imgs[k])}" alt="">`, "lightbox");
   m.querySelector(".mdl").style.cursor = "pointer";
-  m.querySelector(".mdl").onclick = e => { if (e.target.closest(".x")) return; k = (k + 1) % imgs.length; m.querySelector("img").src = "/uploads/" + imgs[k]; m.querySelector("header").lastChild.textContent = `Photo ${k + 1} / ${imgs.length}`; };
+  m.querySelector(".mdl").onclick = e => { if (e.target.closest(".x")) return; k = (k + 1) % imgs.length; m.querySelector("img").src = imgs[k]; m.querySelector("header").lastChild.textContent = `Photo ${k + 1} / ${imgs.length}`; };
 }
 
 /* -------------------------------------------------------- favoris/messages */
@@ -251,21 +314,47 @@ async function dashboard() {
   if (u.role !== "host") throw Object.assign(new Error("Espace réservé aux hôtes."), { status: 403 });
   const [r, q] = await Promise.all([api("/api/my/listings"), api("/api/my/inquiries")]);
   $("#view").innerHTML = `<div class="wrap page"><div class="row-actions" style="justify-content:space-between;margin-bottom:12px"><h1 style="margin:0">Mes annonces</h1><a class="btn" href="#/new">+ Nouvelle annonce</a></div>
+    ${state.auth.email_verification && !u.email_verified ? '<div class="notice warn">Confirmez votre adresse e-mail pour publier. <button type="button" class="linkish" data-act="resend">Renvoyer l\'e-mail</button></div>' : ""}
     ${u.verified ? "" : '<div class="notice warn">Votre compte n\'est pas encore vérifié : vos annonces peuvent être revues manuellement avant publication.</div>'}
     ${r.items.length ? `<div class="table-wrap"><table class="tbl"><thead><tr><th></th><th>Annonce</th><th>Prix</th><th>Statut</th><th>Demandes</th><th></th></tr></thead><tbody>
-      ${r.items.map(l => `<tr><td>${l.cover ? `<img class="thumb" src="/uploads/${esc(l.cover)}" alt="">` : ""}</td><td><a href="#/listing/${l.id}"><b>${esc(l.title)}</b></a><br><span class="hint">${esc(l.commune)}, ${esc(l.city)}</span>${l.status === "pending" ? `<br><span class="hint">En vérification : ${esc(l.risk_reasons.join(" · "))}</span>` : ""}</td>
+      ${r.items.map(l => `<tr><td>${l.cover ? `<img class="thumb" src="${esc(l.cover)}" alt="">` : ""}</td><td><a href="#/listing/${l.id}"><b>${esc(l.title)}</b></a><br><span class="hint">${esc(l.commune)}, ${esc(l.city)}</span>${l.status === "pending" ? `<br><span class="hint">En vérification : ${esc(l.risk_reasons.join(" · "))}</span>` : ""}</td>
         <td>${money(l)}</td><td><span class="pill ${l.status}">${{ active: "En ligne", pending: "En vérification", rejected: "Rejetée", closed: l.deal === "location" ? "Loué" : "Vendu" }[l.status]}</span></td><td>${l.inquiries}</td>
         <td>${l.status === "rejected" ? "" : `<button class="btn danger sm" data-del="${l.id}">Supprimer</button>`}</td></tr>`).join("")}</tbody></table></div>` : '<div class="empty"><h3>Aucune annonce</h3><p>Publiez votre première maison.</p><a class="btn" href="#/new">Publier</a></div>'}
     <h2 style="margin-top:40px">Dernières demandes de visite</h2>
     ${q.items.length ? `<div class="table-wrap"><table class="tbl"><tbody>${q.items.slice(0, 8).map(x => `<tr><td>${esc(x.who)}</td><td>${esc(x.title)}</td><td>${esc(x.message)}</td><td>${esc(x.preferred_date || "")}</td></tr>`).join("")}</tbody></table></div>` : '<p class="hint">Aucune demande.</p>'}</div>`;
 }
 
-let files = [];
+let photos = [];
+async function shrink(file) {
+  // Réduit à 2000 px max côté navigateur : envoi rapide (réseaux mobiles) et sous la limite de 4,5 Mo.
+  try {
+    const bmp = await createImageBitmap(file, { imageOrientation: "from-image" });
+    const k = Math.min(1, 2000 / Math.max(bmp.width, bmp.height));
+    if (k === 1 && file.size < 3_500_000) return file;
+    const c = document.createElement("canvas"); c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
+    c.getContext("2d").drawImage(bmp, 0, 0, c.width, c.height);
+    const blob = await new Promise(r => c.toBlob(r, "image/jpeg", 0.9));
+    return new File([blob], file.name.replace(/\.\w+$/, "") + ".jpg", { type: "image/jpeg" });
+  } catch { return file; }
+}
+let uploadQueue = Promise.resolve();
+function uploadPhoto(p) {
+  uploadQueue = uploadQueue.then(async () => {
+    if (!photos.includes(p)) return;
+    try {
+      const fd = new FormData(); fd.append("image", await shrink(p.file));
+      const r = await api("/api/uploads", { method: "POST", body: fd });
+      p.id = r.id; p.state = "ok";
+      if (!photos.includes(p)) api("/api/uploads/" + r.id, { method: "DELETE" }).catch(() => {});
+    } catch (x) { p.state = "bad"; p.reason = x.message; }
+    drawPv();
+  });
+}
 async function newListing() {
   const u = state.user;
   if (!u) throw Object.assign(new Error("Connexion requise"), { status: 401 });
   if (u.role !== "host") throw Object.assign(new Error("Seuls les hôtes peuvent publier des annonces."), { status: 403 });
-  files = [];
+  photos = [];
   const M = state.meta;
   $("#view").innerHTML = `<div class="wrap page"><form class="form" id="nf" novalidate><h1>Publier un bien</h1>
     <div class="seg-pick"><label><input type="radio" name="deal" value="location" checked><b>Location</b><span>Prix par mois</span></label><label><input type="radio" name="deal" value="vente"><b>Vente</b><span>Prix de vente total</span></label></div>
@@ -283,50 +372,79 @@ async function newListing() {
     <label class="chk" style="margin-bottom:14px"><input type="checkbox" name="furnished" value="1"> Meublé</label>
     <div class="field"><span class="lbl">Équipements</span><div class="tags">${M.amenities.map(a => `<label class="tag"><input type="checkbox" name="amenities" value="${esc(a)}">${esc(a)}</label>`).join("")}</div></div>
     <div class="field"><span class="lbl">Photos (${M.min_images} à ${M.max_images}) — uniques, prises par vous</span>
-      <label class="drop" id="drop" for="n-files">Glissez vos photos ici ou <u>parcourez</u><br><span class="hint">JPEG, PNG ou WebP · min. 480×320 · chaque photo est comparée à toutes les annonces existantes</span></label>
+      <label class="drop" id="drop" for="n-files">Glissez vos photos ici ou <u>parcourez</u><br><span class="hint">JPEG, PNG ou WebP · min. 480×320 · chaque photo est vérifiée dès l'envoi et comparée à toutes les annonces existantes</span></label>
       <input id="n-files" type="file" accept="image/jpeg,image/png,image/webp" multiple hidden><div class="previews" id="pvs"></div></div>
     <div class="err" id="nerr" role="alert"></div><button class="btn" id="nsub">Publier l'annonce</button></form></div>`;
+  if (state.auth.email_verification && !u.email_verified) $("#nf").insertAdjacentHTML("afterbegin", '<div class="notice warn">Confirmez votre adresse e-mail pour publier. <button type="button" class="linkish" data-act="resend">Renvoyer l\'e-mail</button></div>');
   const city = $("#n-city"), com = $("#n-com"), fill = () => { com.innerHTML = opts(M.cities[city.value]); };
   fill(); city.onchange = fill;
   $("#nf").addEventListener("change", e => { if (e.target.name === "deal") $("#pl").textContent = e.target.value === "vente" ? "Prix de vente (USD)" : "Loyer mensuel (USD)"; if (e.target.closest(".tag")) e.target.closest(".tag").classList.toggle("on", e.target.checked); });
-  const add = list => { for (const f of list) if (f.type.startsWith("image/") && files.length < M.max_images && !files.some(x => x.name === f.name && x.size === f.size)) files.push(f); drawPv(); };
+  const add = list => {
+    for (const f of list) {
+      if (!f.type.startsWith("image/") || photos.filter(p => p.state !== "bad").length >= M.max_images) continue;
+      if (photos.some(p => p.file.name === f.name && p.file.size === f.size)) continue;
+      const p = { file: f, url: URL.createObjectURL(f), state: "up" }; photos.push(p); uploadPhoto(p);
+    }
+    drawPv();
+  };
   $("#n-files").onchange = e => { add([...e.target.files]); e.target.value = ""; };
   const drop = $("#drop");
   ["dragover", "dragenter"].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.add("over"); }));
   ["dragleave", "drop"].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.remove("over"); }));
   drop.addEventListener("drop", e => add([...e.dataTransfer.files]));
-  $("#pvs").onclick = e => { const b = e.target.closest("[data-rm]"); if (b) { files.splice(+b.dataset.rm, 1); drawPv(); } };
+  $("#pvs").onclick = e => {
+    const b = e.target.closest("[data-rm]"); if (!b) return;
+    const [p] = photos.splice(+b.dataset.rm, 1); URL.revokeObjectURL(p.url);
+    if (p.id) api("/api/uploads/" + p.id, { method: "DELETE" }).catch(() => {});
+    drawPv();
+  };
   $("#nf").onsubmit = async e => {
     e.preventDefault();
-    const err = $("#nerr"); err.textContent = ""; drawPv();
-    if (files.length < M.min_images) { err.textContent = `Ajoutez au moins ${M.min_images} photos.`; return; }
-    const fd = new FormData(e.target); files.forEach(f => fd.append("images", f));
+    const err = $("#nerr"); err.textContent = "";
+    if (photos.some(p => p.state === "up")) { err.textContent = "Patientez : des photos sont encore en cours de vérification."; return; }
+    if (photos.some(p => p.state === "bad")) { err.textContent = "Retirez les photos refusées (en rouge) avant de publier."; return; }
+    const ok = photos.filter(p => p.state === "ok");
+    if (ok.length < M.min_images) { err.textContent = `Ajoutez au moins ${M.min_images} photos.`; return; }
+    const fd = new FormData(e.target), d = Object.fromEntries(fd);
+    d.amenities = fd.getAll("amenities"); d.furnished = fd.has("furnished"); d.image_ids = ok.map(p => p.id);
     const btn = $("#nsub"); btn.disabled = true; btn.textContent = "Contrôle anti-fraude en cours…";
     try {
-      const r = await api("/api/listings", { method: "POST", body: fd });
+      const r = await api("/api/listings", { json: d });
+      photos = [];
       toast(r.status === "active" ? "Annonce publiée ✓" : "Annonce reçue : vérification par la modération");
       go("#/host");
-    } catch (x) {
-      err.textContent = x.message;
-      if (x.data?.problems) {
-        drawPv(Object.fromEntries(x.data.problems.map(p => [p.file, p.reason])));
-        err.textContent += " Remplacez les photos signalées en rouge.";
-      }
-      btn.disabled = false; btn.textContent = "Publier l'annonce";
-    }
+    } catch (x) { err.textContent = x.message; btn.disabled = false; btn.textContent = "Publier l'annonce"; }
   };
 }
-function drawPv(bad = {}) {
-  $("#pvs").innerHTML = files.map((f, i) => `<div class="pv ${bad[f.name] ? "bad" : ""} ${i === 0 ? "first" : ""}"><img src="${URL.createObjectURL(f)}" alt=""><button type="button" data-rm="${i}" aria-label="Retirer">✕</button>${bad[f.name] ? `<div class="why">${esc(bad[f.name])}</div>` : ""}</div>`).join("");
+function drawPv() {
+  const box = $("#pvs"); if (!box) return;
+  box.innerHTML = photos.map((p, i) => `<div class="pv ${p.state === "bad" ? "bad" : ""} ${i === 0 ? "first" : ""}"><img src="${p.url}" alt="">
+    <button type="button" data-rm="${i}" aria-label="Retirer">✕</button>
+    ${p.state === "up" ? '<div class="st">Vérification…</div>' : p.state === "ok" ? '<div class="st ok">✓ Unique</div>' : `<div class="why">${esc(p.reason)}</div>`}</div>`).join("");
 }
 
 /* ------------------------------------------------------------------ admin */
 async function admin() {
   const r = await api("/api/admin/queue");
   $("#view").innerHTML = `<div class="wrap page"><h1>Modération (${r.items.length} en attente)</h1>
-    ${r.items.map(l => `<div class="block-sec"><div class="row-actions" style="align-items:flex-start;justify-content:space-between"><div style="display:flex;gap:14px">${l.cover ? `<img class="thumb" src="/uploads/${esc(l.cover)}" alt="">` : ""}<div><a href="#/listing/${l.id}"><b>${esc(l.title)}</b></a><br><span class="hint">Hôte : ${esc(l.host)} ${l.host_verified ? "✓" : ""} · ${money(l)} · ${esc(l.commune)}</span>
-      <div class="risk" style="margin-top:8px"><b>Risque ${l.risk_score}</b><ul style="margin:4px 0 0">${l.risk_reasons.map(x => `<li>${esc(x)}</li>`).join("")}${l.reports.map(x => `<li>Signalement : ${esc(x)}</li>`).join("")}</ul></div></div></div>
+    <div class="notice ok"><b>Annonces de démonstration</b> — importe des annonces illustrées par de vraies photos de maisons de RDC (Wikimedia Commons, licences libres, crédits affichés). Elles arrivent ici en attente : vérifiez chaque photo avant d'approuver.
+      <div class="row-actions" style="margin-top:10px"><button class="btn sm" data-demo="commons">Importer (photos réelles)</button><span class="hint" id="demoSt"></span></div></div>
+    ${r.items.map(l => `<div class="block-sec"><div class="row-actions" style="align-items:flex-start;justify-content:space-between"><div style="display:flex;gap:14px">${l.cover ? `<img class="thumb" src="${esc(l.cover)}" alt="">` : ""}<div><a href="#/listing/${l.id}"><b>${esc(l.title)}</b></a>${l.is_demo ? ' <span class="pill">Démo</span>' : ""}<br><span class="hint">Hôte : ${esc(l.host)} ${l.host_verified ? "✓" : `<button class="linkish" data-verify="${l.host_id}">vérifier l'hôte</button>`} · ${money(l)} · ${esc(l.commune)}</span>
+      ${l.risk_reasons.length || l.reports.length ? `<div class="risk" style="margin-top:8px"><b>Risque ${l.risk_score}</b><ul style="margin:4px 0 0">${l.risk_reasons.map(x => `<li>${esc(x)}</li>`).join("")}${l.reports.map(x => `<li>Signalement : ${esc(x)}</li>`).join("")}</ul></div>` : ""}</div></div>
       <div class="row-actions"><button class="btn sm" data-decide="approve" data-id="${l.id}">Approuver</button><button class="btn danger sm" data-decide="reject" data-id="${l.id}">Rejeter</button></div></div></div>`).join("") || '<div class="empty"><h3>File vide 🎉</h3></div>'}</div>`;
+}
+async function runDemo(source, btn) {
+  btn.disabled = true; const st = $("#demoSt"); let n = 0;
+  try {
+    for (let i = 0; i < 20; i++) {
+      st.textContent = `Import en cours… ${n} annonce(s) créée(s)`;
+      const r = await api("/api/admin/demo", { json: { source } });
+      n += r.created.length;
+      if (r.skipped.length) toast(r.skipped[0]);
+      if (r.done) break;
+    }
+    toast(`${n} annonce(s) de démo importée(s).`); route();
+  } catch (x) { toast(x.message); btn.disabled = false; st.textContent = ""; }
 }
 
 /* ----------------------------------------------------------------- events */
@@ -337,10 +455,12 @@ document.addEventListener("click", async e => {
   if (act === "signup") return authModal("signup", "client");
   if (act === "signup-host") return authModal("signup", "host");
   if (act === "close") return closeModal();
+  if (act === "forgot") return forgotModal();
+  if (act === "resend") { try { await api("/api/auth/resend-verification", { method: "POST" }); toast("E-mail de confirmation renvoyé."); } catch (x) { toast(x.message); } return; }
   if (act === "filters") return filtersModal();
   if (act === "reset") { closeModal(); return go("#/"); }
   if (act === "lightbox") return lightbox(t.dataset.i);
-  if (act === "logout") { await api("/api/logout", { method: "POST" }); state.user = null; renderHeader(); go("#/"); return toast("À bientôt !"); }
+  if (act === "logout") { await api("/api/auth/logout", { method: "POST" }); state.user = null; renderHeader(); go("#/"); return toast("À bientôt !"); }
   const cat = t.closest("[data-cat]");
   if (cat) return go("#/" + qs({ ...state.f, ptype: cat.dataset.cat }));
   const fav = t.closest("[data-fav]");
@@ -361,6 +481,10 @@ document.addEventListener("click", async e => {
   if (cl) { try { await api("/api/listings/" + cl.dataset.close, { method: "PATCH", json: { status: "closed" } }); toast("Annonce clôturée"); route(); } catch (x) { toast(x.message); } return; }
   const rep = t.closest("[data-report]");
   if (rep) { const why = prompt("Pourquoi signalez-vous cette annonce ? (fausses photos, prix trompeur, arnaque…)"); if (why) { try { await api(`/api/listings/${rep.dataset.report}/report`, { json: { reason: why } }); toast("Signalement envoyé, merci."); } catch (x) { toast(x.message); } } return; }
+  const demo = t.closest("[data-demo]");
+  if (demo) return runDemo(demo.dataset.demo, demo);
+  const ver = t.closest("[data-verify]");
+  if (ver) { try { await api(`/api/admin/users/${ver.dataset.verify}/verify`, { method: "POST" }); toast("Hôte vérifié ✓"); route(); } catch (x) { toast(x.message); } return; }
   const dec = t.closest("[data-decide]");
   if (dec) { try { await api(`/api/admin/listings/${dec.dataset.id}/decision`, { json: { action: dec.dataset.decide } }); route(); } catch (x) { toast(x.message); } return; }
   if (t.closest("[data-need]") && !state.user) { e.preventDefault(); authModal("signup", "host"); }
@@ -368,7 +492,7 @@ document.addEventListener("click", async e => {
 window.addEventListener("hashchange", route);
 
 (async () => {
-  [state.meta, { user: state.user }] = await Promise.all([api("/api/meta"), api("/api/me")]);
+  [state.meta, { user: state.user }, state.auth] = await Promise.all([api("/api/meta"), api("/api/auth/me"), api("/api/auth/config")]);
   route();
 })();
 })();

@@ -56,15 +56,15 @@ def _phash(img):
 def load_image(raw):
     """Décode et valide un fichier image ; retourne une image RGB normalisée."""
     try:
-        probe = Image.open(io.BytesIO(raw))
-        fmt = probe.format
+        # Seuls les décodeurs JPEG/PNG/WebP sont autorisés (surface d'attaque réduite).
+        probe = Image.open(io.BytesIO(raw), formats=sorted(ALLOWED_FORMATS))
+        if probe.width * probe.height > Image.MAX_IMAGE_PIXELS:  # bombe de décompression
+            raise ImageRejected("Image aux dimensions excessives.")
         probe.verify()
-        img = Image.open(io.BytesIO(raw))
+        img = Image.open(io.BytesIO(raw), formats=sorted(ALLOWED_FORMATS))
         img = ImageOps.exif_transpose(img).convert("RGB")
     except (UnidentifiedImageError, OSError, Image.DecompressionBombError, SyntaxError):
-        raise ImageRejected("Fichier illisible ou ce n'est pas une image.")
-    if fmt not in ALLOWED_FORMATS:
-        raise ImageRejected("Format non accepté (JPEG, PNG ou WebP uniquement).")
+        raise ImageRejected("Fichier illisible ou format non accepté (JPEG, PNG ou WebP uniquement).")
     if img.width < MIN_W or img.height < MIN_H:
         raise ImageRejected(f"Image trop petite (minimum {MIN_W}×{MIN_H}px).")
     if np.asarray(img.convert("L")).std() < 6:
@@ -85,15 +85,21 @@ def fingerprint(img):
     }
 
 
+def signed64(x):
+    """Entier 64 bits non signé → BIGINT PostgreSQL (signé)."""
+    return x - (1 << 64) if x >= (1 << 63) else x
+
+
 def hamming(a, b):
     return (a ^ b).bit_count()
 
 
 def match_image(fp, other):
-    """`other` = ligne stockée (sha, dhash, phash). Retourne 'exact', 'similar' ou None."""
+    """`other` = empreinte (sha, dhash, phash en int ou hex). Retourne 'exact', 'similar' ou None."""
     if fp["sha"] == other["sha"]:
         return "exact"
-    od, op = int(other["dhash"], 16), int(other["phash"], 16)
+    od, op = (int(other[k], 16) if isinstance(other[k], str) else other[k] & ((1 << 64) - 1)
+              for k in ("dhash", "phash"))
     for d, p in ((fp["dhash"], fp["phash"]), (fp["dhash_m"], fp["phash_m"])):
         if hamming(d, od) <= DHASH_MAX and hamming(p, op) <= PHASH_MAX:
             return "similar"

@@ -183,3 +183,14 @@ main{min-height:70vh}
 #toast{position:fixed;bottom:24px;left:50%;transform:translate(-50%,40px);background:var(--ink);color:#fff;padding:12px 20px;border-radius:10px;opacity:0;pointer-events:none;transition:.25s;z-index:99;max-width:90vw}
 #toast.show{opacity:1;transform:translate(-50%,0)}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+/* connexion Google / Apple */
+.social{display:flex;flex-direction:column;gap:10px;margin-bottom:6px}
+.g-btn{min-height:44px;display:flex;justify-content:center}
+.btn.apple{background:#000;color:#fff;border-radius:999px;padding:11px 22px}
+.btn.apple:hover{background:#222}
+.or{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:12px;margin:8px 0}
+.or::before,.or::after{content:"";flex:1;border-top:1px solid var(--line)}
+.linkish{background:none;border:0;padding:0;color:var(--brand-d);text-decoration:underline;cursor:pointer;font-size:13px;align-self:flex-start}
+.badge.demo{background:#222;color:#fff}
+.pv .st{position:absolute;left:4px;top:4px;background:rgba(0,0,0,.65);color:#fff;border-radius:999px;font-size:11px;padding:2px 8px}
+.pv .st.ok{background:var(--ok)}

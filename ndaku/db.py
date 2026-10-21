@@ -1,0 +1,72 @@
+"""Accès PostgreSQL (Neon) : pool de connexions + migration idempotente au démarrage."""
+import atexit
+import os
+import threading
+
+from flask import current_app, g
+from psycopg.rows import dict_row
+from psycopg_pool import ConnectionPool
+
+_SCHEMA = os.path.join(os.path.dirname(__file__), "schema.sql")
+_pools = {}
+_lock = threading.Lock()
+
+
+def pool(url):
+    with _lock:
+        p = _pools.get(url)
+        if p is None:
+            # prepare_threshold=None : compatible avec le pooler PgBouncer de Neon (mode transaction).
+            p = ConnectionPool(url, min_size=0, max_size=int(os.environ.get("DB_POOL_MAX", "5")),
+                               kwargs={"row_factory": dict_row, "prepare_threshold": None, "autocommit": False},
+                               check=ConnectionPool.check_connection, open=True)
+            _pools[url] = p
+            atexit.register(p.close)
+        return p
+
+
+def migrate(url):
+    with pool(url).connection() as con:
+        con.execute("SELECT pg_advisory_xact_lock(424242)")
+        con.execute(open(_SCHEMA).read())
+
+
+def db():
+    """Connexion de la requête courante (transaction validée à la fin si pas d'erreur)."""
+    if "db" not in g:
+        g._db_pool = pool(current_app.config["NDAKU"].DATABASE_URL)
+        g.db = g._db_pool.getconn()
+    return g.db
+
+
+def close(exc):
+    con = g.pop("db", None)
+    if con is None:
+        return
+    try:
+        if exc is None and not g.get("db_rollback"):
+            con.commit()
+        else:
+            con.rollback()
+    finally:
+        g._db_pool.putconn(con)
+
+
+def one(sql, args=()):
+    return db().execute(sql, args).fetchone()
+
+
+def all_(sql, args=()):
+    return db().execute(sql, args).fetchall()
+
+
+def run(sql, args=()):
+    return db().execute(sql, args)
+
+
+def committed(sql, args=()):
+    """Écriture validée immédiatement, hors transaction de la requête : survit à un abort()
+    (compteurs anti-brute-force, journal d'audit)."""
+    with pool(current_app.config["NDAKU"].DATABASE_URL).connection() as con:
+        cur = con.execute(sql, args)
+        return cur.fetchone() if cur.description else None
