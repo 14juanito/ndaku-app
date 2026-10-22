@@ -292,3 +292,33 @@ def test_private_blob_store_photos_served_via_media(app, client, monkeypatch):
     for bad in ("../secret.jpg", "x" * 32 + ".png", "listings%2F" + "a" * 32 + ".jpg"):
         assert client.get(f"/media/{bad}").status_code == 404
     assert client.delete(f"/api/uploads/{r.json['id']}").status_code == 200 and not store
+
+
+def test_private_blob_store_photos_served_via_media(app, client, monkeypatch):
+    """Store Vercel Blob privé : photo écrite en privé, servie par /media/ avec cache CDN, noms validés."""
+    import vercel.blob.sync as vb
+    store = {}
+
+    class Res:
+        def __init__(self, body):
+            self.body = body
+
+    def get(path, access):
+        if path not in store:
+            raise vb.BlobNotFoundError("absent")
+        return Res(store[path][0])
+    monkeypatch.setattr(vb, "put_blob", lambda path, body, **kw: store.update({path: (bytes(body), kw["access"])}))
+    monkeypatch.setattr(vb, "get_blob", get)
+    monkeypatch.setattr(vb, "delete_blob", lambda keys: [store.pop(k, None) for k in keys])
+    st = app.config["STORAGE"]
+    st.blob, st.cfg.BLOB_ACCESS = True, "private"
+    register(client, "h@x.cd", "host")
+    r = upload(client, 1)
+    assert r.status_code == 201 and r.json["url"].startswith("/media/")
+    assert all(acc == "private" for _, acc in store.values())
+    img = client.get(r.json["url"])
+    assert img.status_code == 200 and img.mimetype == "image/jpeg" and "immutable" in img.headers["Cache-Control"]
+    assert "Set-Cookie" not in img.headers
+    for bad in ("../secret.jpg", "x" * 32 + ".png", "listings%2F" + "a" * 32 + ".jpg"):
+        assert client.get(f"/media/{bad}").status_code == 404
+    assert client.delete(f"/api/uploads/{r.json['id']}").status_code == 200 and not store
