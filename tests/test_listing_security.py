@@ -334,3 +334,22 @@ def test_vercel_without_blob_starts_and_refuses_uploads_cleanly(app):  # fixture
     register(c, "h@x.cd", "host")
     r = upload(c, 1)
     assert r.status_code == 503 and "Blob" in r.json["error"]
+
+
+@pytest.mark.parametrize("env,mode", [
+    ({"BLOB_STORE_ID": "store_abc123"}, "blob-oidc"),                       # stores récents (OIDC)
+    ({"BLOB_READ_WRITE_TOKEN": "vercel_blob_rw_abc_secret"}, "blob-token"),  # anciens stores
+    ({"NDAKU_READ_WRITE_TOKEN": "vercel_blob_rw_abc_secret"}, "blob-token"),  # préfixe personnalisé
+    ({}, "none"),
+])
+def test_blob_store_detection_on_vercel(monkeypatch, env, mode):
+    from ndaku.config import Config
+    from ndaku.storage import Storage
+    for k in ("BLOB_STORE_ID", "BLOB_READ_WRITE_TOKEN", "VERCEL_BLOB_READ_WRITE_TOKEN"):
+        monkeypatch.setenv(k, "")  # enregistre l'état d'origine : Storage() y recopie des valeurs, restaurées ensuite
+        monkeypatch.delenv(k)
+    for k, v in env.items():
+        monkeypatch.setenv(k, v)
+    monkeypatch.setenv("VERCEL", "1")
+    monkeypatch.setenv("DATABASE_URL", "postgresql://x@localhost/x")
+    assert Storage(Config()).mode == mode

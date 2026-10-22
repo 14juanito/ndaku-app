@@ -13,7 +13,14 @@ class StorageUnavailable(Exception):
 class Storage:
     def __init__(self, cfg):
         self.cfg = cfg
-        self.blob = bool(cfg.BLOB_TOKEN)
+        self.blob = bool(cfg.BLOB_TOKEN or cfg.BLOB_STORE_ID)
+        # Le SDK lit ces noms exacts : on y recopie les valeurs trouvées sous un préfixe personnalisé.
+        if cfg.BLOB_TOKEN and cfg.ON_VERCEL:
+            os.environ.setdefault("BLOB_READ_WRITE_TOKEN", cfg.BLOB_TOKEN)
+        if cfg.BLOB_STORE_ID and cfg.ON_VERCEL:
+            os.environ.setdefault("BLOB_STORE_ID", cfg.BLOB_STORE_ID)
+        self.mode = ("blob-oidc" if cfg.BLOB_STORE_ID else "blob-token") if self.blob else (
+            "none" if cfg.ON_VERCEL else "local")
         # Sur Vercel le disque est en lecture seule : pas de repli local, il faut un store Blob.
         self.available = self.blob or not cfg.ON_VERCEL
 

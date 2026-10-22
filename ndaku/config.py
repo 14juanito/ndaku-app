@@ -32,7 +32,12 @@ class Config:
         self.RESEND_API_KEY = env.get("RESEND_API_KEY")
         self.MAIL_FROM = env.get("MAIL_FROM", "Ndaku <no-reply@ndaku.app>")
         self.REQUIRE_EMAIL_VERIFICATION = _bool("REQUIRE_EMAIL_VERIFICATION", bool(self.RESEND_API_KEY))
-        self.BLOB_TOKEN = env.get("BLOB_READ_WRITE_TOKEN")
+        # Vercel Blob : jeton lecture/écriture (anciens stores) ou OIDC + identifiant du store (stores récents).
+        # Le préfixe des variables est choisi à la connexion du store : on reconnaît aussi un préfixe personnalisé.
+        self.BLOB_TOKEN = env.get("BLOB_READ_WRITE_TOKEN") or env.get("VERCEL_BLOB_READ_WRITE_TOKEN") or next(
+            (v for k, v in env.items() if k.endswith("_READ_WRITE_TOKEN") and v.startswith("vercel_blob_rw_")), None)
+        self.BLOB_STORE_ID = env.get("BLOB_STORE_ID") or next(
+            (v for k, v in env.items() if k.endswith("_STORE_ID") and v.startswith("store_")), None)
         # Accès du store Blob tel que créé dans Vercel : "private" (photos servies via /media/, cache CDN)
         # ou "public" (URL directes *.public.blob.vercel-storage.com).
         self.BLOB_ACCESS = env.get("NDAKU_BLOB_ACCESS", "private")

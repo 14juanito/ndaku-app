@@ -38,6 +38,15 @@ def create_app(**overrides):
         app.register_blueprint(bp)
 
     app.before_request(csrf_check)
+
+    if cfg.ON_VERCEL:
+        from vercel.headers import set_headers
+
+        @app.before_request
+        def vercel_oidc_context():
+            # Le SDK Blob (mode OIDC) lit le jeton de la requête courante ; on ne lui transmet que cet en-tête.
+            tok = request.headers.get("x-vercel-oidc-token")
+            set_headers({"x-vercel-oidc-token": tok} if tok else None)
     app.teardown_appcontext(dbm.close)
 
     @app.after_request
@@ -98,6 +107,7 @@ def create_app(**overrides):
     @app.get("/api/health")
     def health():
         dbm.one("SELECT 1 AS ok")
-        return jsonify(ok=True)
+        st = app.config["STORAGE"]
+        return jsonify(ok=True, storage=st.mode, blob_access=cfg.BLOB_ACCESS if st.blob else None)
 
     return app
