@@ -33,6 +33,9 @@ class Config:
         self.MAIL_FROM = env.get("MAIL_FROM", "Ndaku <no-reply@ndaku.app>")
         self.REQUIRE_EMAIL_VERIFICATION = _bool("REQUIRE_EMAIL_VERIFICATION", bool(self.RESEND_API_KEY))
         self.BLOB_TOKEN = env.get("BLOB_READ_WRITE_TOKEN")
+        # Accès du store Blob tel que créé dans Vercel : "private" (photos servies via /media/, cache CDN)
+        # ou "public" (URL directes *.public.blob.vercel-storage.com).
+        self.BLOB_ACCESS = env.get("NDAKU_BLOB_ACCESS", "private")
         self.CRON_SECRET = env.get("CRON_SECRET")
         self.SESSION_DAYS = int(env.get("SESSION_DAYS", "30"))
         self.LOCAL_UPLOADS = env.get("NDAKU_UPLOADS", os.path.join(os.path.dirname(os.path.dirname(__file__)), "instance", "uploads"))

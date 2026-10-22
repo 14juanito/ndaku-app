@@ -53,7 +53,7 @@ def create_app(**overrides):
         if cfg.SECURE_COOKIES:
             h["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains"
         if request.path.startswith("/api/"):
-            h.setdefault("Cache-Control", "no-store")
+            h["Cache-Control"] = "no-store"
         if g.get("retry_after"):
             h["Retry-After"] = str(g.retry_after)
         return resp
@@ -62,7 +62,7 @@ def create_app(**overrides):
     def on_error(e):
         g.db_rollback = True
         if isinstance(e, HTTPException):
-            if e.code == 404 and not request.path.startswith(("/api/", "/uploads/")) and not cfg.ON_VERCEL:
+            if e.code == 404 and not request.path.startswith(("/api/", "/uploads/", "/media/")) and not cfg.ON_VERCEL:
                 return app.send_static_file("index.html")
             return jsonify(error=e.description if e.code != 500 else "Erreur serveur"), e.code
         app.logger.exception("Erreur non gérée")
@@ -74,6 +74,19 @@ def create_app(**overrides):
         if not path or not os.path.exists(path):
             abort(404)
         resp = send_file(path, mimetype="image/jpeg", max_age=31536000)
+        resp.headers["Content-Security-Policy"] = "default-src 'none'"
+        return resp
+
+    @app.get("/media/<name>")
+    def private_media(name):
+        """Photos d'un store Blob privé, servies par l'app puis mises en cache par le CDN Vercel
+        (nom de fichier aléatoire et immuable)."""
+        data = app.config["STORAGE"].get_private(name)
+        if data is None:
+            abort(404)
+        resp = app.response_class(data, mimetype="image/jpeg")
+        resp.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        resp.headers["CDN-Cache-Control"] = "public, max-age=31536000, immutable"
         resp.headers["Content-Security-Policy"] = "default-src 'none'"
         return resp
 

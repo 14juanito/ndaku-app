@@ -14,10 +14,13 @@ class Storage:
             os.makedirs(cfg.LOCAL_UPLOADS, exist_ok=True)
 
     def put(self, jpeg: bytes):
-        """Retourne (url publique, clé de stockage)."""
+        """Retourne (url à afficher, clé de stockage)."""
         name = f"{uuid.uuid4().hex}.jpg"
         if self.blob:
             from vercel.blob.sync import put_blob
+            if self.cfg.BLOB_ACCESS == "private":
+                put_blob(f"listings/{name}", jpeg, access="private", content_type="image/jpeg")
+                return f"/media/{name}", f"listings/{name}"
             r = put_blob(f"listings/{name}", jpeg, access="public", content_type="image/jpeg",
                          cache_control_max_age=31536000)
             return r.url, r.url
@@ -42,6 +45,16 @@ class Storage:
                     os.remove(os.path.join(self.cfg.LOCAL_UPLOADS, k))
                 except OSError:
                     pass
+
+    def get_private(self, name):
+        """Octets d'une photo d'un store privé, ou None (nom validé : pas de traversée de chemin)."""
+        if not self.blob or not _SAFE.match(name or ""):
+            return None
+        from vercel.blob.sync import BlobNotFoundError, get_blob
+        try:
+            return get_blob(f"listings/{name}", access="private").body
+        except BlobNotFoundError:
+            return None
 
     def local_path(self, name):
         """Chemin local sûr (anti path traversal) ou None."""
