@@ -9,6 +9,7 @@ from . import photos
 from .auth import body, text
 from .db import all_, one, run
 from .security import current_user, now, rate_limit, require
+from .storage import StorageUnavailable
 
 bp = Blueprint("listings", __name__, url_prefix="/api")
 
@@ -162,6 +163,8 @@ def upload():
         abort(422, str(e))
     try:
         row = photos.save(u["id"], img)
+    except StorageUnavailable:
+        abort(503, "Stockage des photos non configuré (connectez un store Blob au projet Vercel).")
     except photos.Duplicate as d:
         mine = d.clash["owner_id"] == u["id"]
         where = ("l'une de vos annonces" if d.clash["listing_id"] else "vos photos en attente") if mine else "une autre annonce"

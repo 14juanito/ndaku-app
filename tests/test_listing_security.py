@@ -322,3 +322,15 @@ def test_private_blob_store_photos_served_via_media(app, client, monkeypatch):
     for bad in ("../secret.jpg", "x" * 32 + ".png", "listings%2F" + "a" * 32 + ".jpg"):
         assert client.get(f"/media/{bad}").status_code == 404
     assert client.delete(f"/api/uploads/{r.json['id']}").status_code == 200 and not store
+
+
+def test_vercel_without_blob_starts_and_refuses_uploads_cleanly(app):  # fixture app : base remise à zéro
+    """Disque Vercel en lecture seule : l'app doit démarrer sans store Blob et répondre 503 aux uploads."""
+    from conftest import DB, Client
+    from ndaku import create_app
+    vapp = create_app(DATABASE_URL=DB, ON_VERCEL=True, BLOB_TOKEN=None, LOCAL_UPLOADS="/proc/interdit",
+                     REQUIRE_EMAIL_VERIFICATION=False)
+    c = Client(vapp)
+    register(c, "h@x.cd", "host")
+    r = upload(c, 1)
+    assert r.status_code == 503 and "Blob" in r.json["error"]

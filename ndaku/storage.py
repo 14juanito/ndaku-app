@@ -6,16 +6,22 @@ import uuid
 _SAFE = re.compile(r"^[a-f0-9]{32}\.jpg$")
 
 
+class StorageUnavailable(Exception):
+    """Aucun stockage de photos configuré (BLOB_READ_WRITE_TOKEN absent sur Vercel)."""
+
+
 class Storage:
     def __init__(self, cfg):
         self.cfg = cfg
         self.blob = bool(cfg.BLOB_TOKEN)
-        if not self.blob:
-            os.makedirs(cfg.LOCAL_UPLOADS, exist_ok=True)
+        # Sur Vercel le disque est en lecture seule : pas de repli local, il faut un store Blob.
+        self.available = self.blob or not cfg.ON_VERCEL
 
     def put(self, jpeg: bytes):
         """Retourne (url à afficher, clé de stockage)."""
         name = f"{uuid.uuid4().hex}.jpg"
+        if not self.available:
+            raise StorageUnavailable()
         if self.blob:
             from vercel.blob.sync import put_blob
             if self.cfg.BLOB_ACCESS == "private":
@@ -24,6 +30,7 @@ class Storage:
             r = put_blob(f"listings/{name}", jpeg, access="public", content_type="image/jpeg",
                          cache_control_max_age=31536000)
             return r.url, r.url
+        os.makedirs(self.cfg.LOCAL_UPLOADS, exist_ok=True)
         with open(os.path.join(self.cfg.LOCAL_UPLOADS, name), "wb") as f:
             f.write(jpeg)
         return f"/uploads/{name}", name
