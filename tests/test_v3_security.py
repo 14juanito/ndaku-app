@@ -339,3 +339,31 @@ def test_osm_parse_and_store(app):
     q = 'rel["boundary"="administrative"]["name"~"^(N\'djili|N\'Djili|Ndjili)$",i]'
     assert q in osm.build_query("Kinshasa", "Ndjili") or "Ndjili" in osm.build_query("Kinshasa", "Ndjili")
     assert '"' not in osm._names_regex('Evil"]; out; (')
+
+
+# ------------------------------------------------- correctifs revue de sécurité v3
+def test_bbox_cannot_pinpoint_exact_location(world, new_client):
+    """La recherche par zone ne doit pas permettre de retrouver la position exacte par dichotomie."""
+    _, _, _, lid = world
+    sql("UPDATE listings SET lat=-4.30123, lng=15.30187 WHERE id=%s", (lid,))
+    c = new_client()
+    hit = lambda bbox: [p["id"] for p in c.get(f"/api/listings/map?bbox={bbox}").json["items"]]  # noqa: E731
+    with_exact = hit("-4.30125,15.30185,-4.30121,15.30189")      # minuscule zone autour du point exact
+    without_exact = hit("-4.30095,15.30155,-4.30085,15.30165")   # même cellule publique, point exact en dehors
+    assert with_exact == without_exact == [lid]
+    assert hit("-4.2995,15.30185,-4.2990,15.30189") == []        # autre cellule : rien
+
+
+def test_house_number_cannot_be_probed(world, new_client):
+    """Sans photos valides on n'apprend rien sur l'adresse ; les collisions d'adresse sont fortement limitées."""
+    host, _, _, lid = world
+    prober = new_client()
+    register(prober, "probe@x.cd", "host")
+    loc = avenue(prober)  # même avenue que l'annonce cible (numéro 12)
+    for n in ("11", "12", "13"):
+        r = prober.post("/api/listings", json=listing_payload([], loc, house_number=n))
+        assert r.status_code == 400 and "photos" in r.json["error"]  # réponse identique quel que soit le numéro
+    ids = [upload(prober, s).json["id"] for s in (21, 22, 23)]
+    codes = [prober.post("/api/listings", json=listing_payload(ids, loc, house_number="12")).status_code for _ in range(4)]
+    assert codes[:3] == [409, 409, 409] and codes[3] == 429
+    assert sql("SELECT COUNT(*) AS n FROM security_events WHERE event='address_clash'")[0]["n"] >= 3

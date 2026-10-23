@@ -265,3 +265,11 @@ CREATE TABLE IF NOT EXISTS user_reports (
   created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
   UNIQUE (reporter_id, target_id)
 );
+
+-- ============================================================ v4 : position publique (arrondie ~110 m)
+-- La recherche par zone de carte filtre sur ces colonnes : impossible de retrouver la position exacte
+-- en réduisant la zone de recherche (dichotomie).
+ALTER TABLE listings ADD COLUMN IF NOT EXISTS lat_pub NUMERIC(8,3) GENERATED ALWAYS AS (round(lat::numeric, 3)) STORED,
+                     ADD COLUMN IF NOT EXISTS lng_pub NUMERIC(8,3) GENERATED ALWAYS AS (round(lng::numeric, 3)) STORED;
+DROP INDEX IF EXISTS ix_listings_geo;
+CREATE INDEX IF NOT EXISTS ix_listings_geo_pub ON listings (lat_pub, lng_pub) WHERE status = 'active';

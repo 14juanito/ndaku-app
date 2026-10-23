@@ -11,7 +11,7 @@ from . import antifraud as af
 from . import photos, places
 from .auth import body, text
 from .db import all_, one, run
-from .security import current_user, now, rate_limit, require
+from .security import audit, current_user, now, rate_limit, require
 from .storage import StorageUnavailable
 
 bp = Blueprint("listings", __name__, url_prefix="/api")
@@ -114,8 +114,9 @@ def search_filters(a):
             s_, w_, n_, e_ = (float(x) for x in a["bbox"].split(",")[:4])
         except ValueError:
             abort(400, "Zone de carte invalide.")
-        where.append("l.lat BETWEEN %s AND %s AND l.lng BETWEEN %s AND %s")
-        args += [s_, n_, w_, e_]
+        # Positions publiques arrondies, bornes arrondies : la zone ne révèle jamais plus que la carte.
+        where.append("l.lat_pub BETWEEN %s AND %s AND l.lng_pub BETWEEN %s AND %s")
+        args += [round(s_, 3), round(n_, 3), round(w_, 3), round(e_, 3)]
     return " AND ".join(where), args
 
 
@@ -338,6 +339,8 @@ ADDRESS_TAKEN = "Cette adresse (avenue + numéro{}) est déjà publiée dans une
 @require("host", verified_email=True, avatar=True)
 def create_listing():
     u, d = current_user(), body()
+    # Chaque tentative compte (même refusée) : empêche de sonder des adresses en rafale.
+    rate_limit(f"listing-attempt:{u['id']}", 20, 86400, "Trop de tentatives de publication aujourd'hui.")
     run("SELECT pg_advisory_xact_lock(7002, %s)", (u["id"] % 2_000_000_000,))  # quota atomique par hôte
     if one("SELECT COUNT(*)::int AS n FROM listings WHERE owner_id=%s AND created_at > now() - interval '1 day'",
            (u["id"],))["n"] >= MAX_LISTINGS_PER_DAY:
@@ -348,11 +351,6 @@ def create_listing():
         hit = af.find_contact_info(data[field])
         if hit:
             abort(400, f"Coordonnées interdites dans « {field} » ({hit}). Les échanges se font par la messagerie Ndaku.")
-    key = addr_key(loc)
-    unit_hint = " + logement" if loc["unit"] else ""
-    if one("SELECT 1 FROM listings WHERE addr_key=%s AND status IN ('active','pending')", (key,)):
-        abort(409, ADDRESS_TAKEN.format(unit_hint))
-
     ids = d.get("image_ids")
     if (not isinstance(ids, list) or not all(isinstance(i, int) and not isinstance(i, bool) for i in ids)
             or len(set(ids)) != len(ids)):
@@ -363,6 +361,15 @@ def create_listing():
         "SELECT id, url FROM images WHERE id = ANY(%s) AND owner_id=%s AND listing_id IS NULL FOR UPDATE", (ids, u["id"]))}
     if len(owned) != len(ids):
         abort(400, "Certaines photos n'existent pas, ne vous appartiennent pas ou sont déjà utilisées.")
+
+    # Unicité de l'adresse, vérifiée seulement une fois tout le reste valide, et fortement limitée :
+    # le numéro de maison étant privé, on ne doit pas pouvoir le deviner en essayant tous les numéros.
+    key = addr_key(loc)
+    unit_hint = " + logement" if loc["unit"] else ""
+    if one("SELECT 1 FROM listings WHERE addr_key=%s AND status IN ('active','pending')", (key,)):
+        audit("address_clash", u["id"], durable=True, commune_id=loc["commune"]["id"], avenue_id=loc["avenue"]["id"])
+        rate_limit(f"addr-clash:{u['id']}", 3, 86400, "Trop d'adresses déjà publiées essayées aujourd'hui. Contactez le support.")
+        abort(409, ADDRESS_TAKEN.format(unit_hint))
 
     score, reasons = 0, []
     comps = all_("SELECT price::float8 AS price, surface FROM listings WHERE status='active' AND city_id=%s AND deal=%s "
