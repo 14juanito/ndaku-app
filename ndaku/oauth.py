@@ -19,6 +19,7 @@ PROVIDERS = {
     "apple": {"jwks": "https://appleid.apple.com/auth/keys", "issuers": ("https://appleid.apple.com",)},
 }
 _jwks_clients = {}
+GOOGLE_PICTURE = "https://lh3.googleusercontent.com/"  # seule source de photo de profil acceptée depuis un jeton
 
 
 class OAuthError(Exception):
@@ -72,4 +73,5 @@ def verify(provider, token, nonce, audiences):
         raise OAuthError("Nonce expiré ou déjà utilisé.")
     ev = claims.get("email_verified")
     return {"sub": str(claims["sub"]), "email": (claims.get("email") or "").strip().lower() or None,
-            "email_verified": ev is True or ev == "true", "name": claims.get("name")}
+            "email_verified": ev is True or ev == "true", "name": claims.get("name"),
+            "picture": claims.get("picture") if str(claims.get("picture", "")).startswith(GOOGLE_PICTURE) else None}

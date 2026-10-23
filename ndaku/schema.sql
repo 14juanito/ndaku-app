@@ -150,3 +150,118 @@ CREATE TABLE IF NOT EXISTS security_events (          -- journal d'audit (connex
 
 -- Migrations additives (bases déjà créées) — incrémenter SCHEMA_VERSION dans db.py
 ALTER TABLE listings ADD COLUMN IF NOT EXISTS is_demo BOOLEAN NOT NULL DEFAULT FALSE;
+
+-- ============================================================ v3 : carte, référentiel, messagerie
+ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url TEXT,
+                  ADD COLUMN IF NOT EXISTS avatar_key TEXT,
+                  ADD COLUMN IF NOT EXISTS suspended_at TIMESTAMPTZ;
+
+-- Référentiel hiérarchique : province > ville > commune > quartier > avenue (une avenue peut aussi
+-- dépendre directement d'une commune quand le découpage en quartiers est inconnu).
+CREATE TABLE IF NOT EXISTS places (
+  id          BIGSERIAL PRIMARY KEY,
+  kind        TEXT NOT NULL CHECK (kind IN ('province','city','commune','quartier','avenue')),
+  name        TEXT NOT NULL,
+  parent_id   BIGINT REFERENCES places(id) ON DELETE CASCADE,
+  lat         DOUBLE PRECISION,
+  lng         DOUBLE PRECISION,
+  source      TEXT NOT NULL DEFAULT 'seed' CHECK (source IN ('seed','osm','user')),
+  status      TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','pending','rejected')),
+  created_by  BIGINT REFERENCES users(id) ON DELETE SET NULL,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_places_name ON places (COALESCE(parent_id, 0), kind, lower(name));
+CREATE INDEX IF NOT EXISTS ix_places_children ON places (parent_id, kind, status);
+
+ALTER TABLE listings ADD COLUMN IF NOT EXISTS province TEXT,
+                     ADD COLUMN IF NOT EXISTS quartier TEXT,
+                     ADD COLUMN IF NOT EXISTS avenue TEXT,
+                     ADD COLUMN IF NOT EXISTS house_number TEXT,
+                     ADD COLUMN IF NOT EXISTS unit TEXT,
+                     ADD COLUMN IF NOT EXISTS province_id BIGINT REFERENCES places(id) ON DELETE SET NULL,
+                     ADD COLUMN IF NOT EXISTS city_id BIGINT REFERENCES places(id) ON DELETE SET NULL,
+                     ADD COLUMN IF NOT EXISTS commune_id BIGINT REFERENCES places(id) ON DELETE SET NULL,
+                     ADD COLUMN IF NOT EXISTS quartier_id BIGINT REFERENCES places(id) ON DELETE SET NULL,
+                     ADD COLUMN IF NOT EXISTS avenue_id BIGINT REFERENCES places(id) ON DELETE SET NULL,
+                     ADD COLUMN IF NOT EXISTS lat DOUBLE PRECISION,
+                     ADD COLUMN IF NOT EXISTS lng DOUBLE PRECISION,
+                     ADD COLUMN IF NOT EXISTS cover_url TEXT,
+                     ADD COLUMN IF NOT EXISTS rating_sum INT NOT NULL DEFAULT 0,
+                     ADD COLUMN IF NOT EXISTS rating_count INT NOT NULL DEFAULT 0,
+                     ADD COLUMN IF NOT EXISTS fav_count INT NOT NULL DEFAULT 0;
+CREATE INDEX IF NOT EXISTS ix_listings_province ON listings (status, province_id);
+CREATE INDEX IF NOT EXISTS ix_listings_city ON listings (status, city_id);
+CREATE INDEX IF NOT EXISTS ix_listings_commune ON listings (status, commune_id);
+CREATE INDEX IF NOT EXISTS ix_listings_quartier ON listings (status, quartier_id);
+CREATE INDEX IF NOT EXISTS ix_listings_avenue ON listings (status, avenue_id);
+CREATE INDEX IF NOT EXISTS ix_listings_geo ON listings (lat, lng) WHERE status = 'active';
+CREATE INDEX IF NOT EXISTS ix_listings_recent ON listings (status, created_at DESC);
+-- Une adresse (commune + avenue + numéro + logement) ne peut figurer que dans UNE annonce en ligne ou
+-- en modération : garanti par la base, même en cas de publications simultanées.
+DROP INDEX IF EXISTS ix_listings_addr;
+CREATE UNIQUE INDEX IF NOT EXISTS ux_listings_address ON listings (addr_key) WHERE status IN ('active','pending');
+
+-- Compteurs dénormalisés (tri « meilleures maisons » sans agrégats à chaque requête)
+UPDATE listings l SET rating_sum = COALESCE(r.s, 0), rating_count = COALESCE(r.n, 0)
+  FROM (SELECT listing_id, SUM(rating) AS s, COUNT(*) AS n FROM reviews GROUP BY 1) r WHERE r.listing_id = l.id;
+UPDATE listings l SET fav_count = f.n FROM (SELECT listing_id, COUNT(*) AS n FROM favorites GROUP BY 1) f
+  WHERE f.listing_id = l.id;
+UPDATE listings l SET cover_url = i.url FROM images i
+  WHERE l.cover_url IS NULL AND i.listing_id = l.id AND i.position = 0;
+
+-- Messagerie : une conversation par (annonce, client) ; la demande de visite ouvre la discussion.
+CREATE TABLE IF NOT EXISTS conversations (
+  id               BIGSERIAL PRIMARY KEY,
+  listing_id       BIGINT NOT NULL REFERENCES listings(id) ON DELETE CASCADE,
+  client_id        BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  host_id          BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+  last_message_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  client_read_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  host_read_at     TIMESTAMPTZ NOT NULL DEFAULT 'epoch',
+  blocked_by       BIGINT REFERENCES users(id) ON DELETE SET NULL,
+  UNIQUE (listing_id, client_id),
+  CHECK (client_id <> host_id)
+);
+CREATE INDEX IF NOT EXISTS ix_conv_client ON conversations (client_id, last_message_at DESC);
+CREATE INDEX IF NOT EXISTS ix_conv_host ON conversations (host_id, last_message_at DESC);
+
+CREATE TABLE IF NOT EXISTS messages (
+  id               BIGSERIAL PRIMARY KEY,
+  conversation_id  BIGINT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+  sender_id        BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  kind             TEXT NOT NULL DEFAULT 'text' CHECK (kind IN ('text','visit','contact')),
+  body             TEXT NOT NULL,
+  meta             JSONB NOT NULL DEFAULT '{}',
+  flagged          BOOLEAN NOT NULL DEFAULT FALSE,     -- mention de paiement : avertissement anti-arnaque
+  created_at       TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS ix_messages_conv ON messages (conversation_id, id);
+
+-- Reprise des anciennes demandes de visite dans la messagerie
+INSERT INTO conversations (listing_id, client_id, host_id, created_at, last_message_at)
+  SELECT q.listing_id, q.user_id, l.owner_id, MIN(q.created_at), MAX(q.created_at)
+  FROM inquiries q JOIN listings l ON l.id = q.listing_id WHERE q.user_id <> l.owner_id GROUP BY 1, 2, 3
+  ON CONFLICT (listing_id, client_id) DO NOTHING;
+INSERT INTO messages (conversation_id, sender_id, kind, body, meta, created_at)
+  SELECT c.id, q.user_id, 'visit', q.message,
+         CASE WHEN q.preferred_date IS NULL THEN '{}'::jsonb ELSE jsonb_build_object('date', q.preferred_date) END,
+         q.created_at
+  FROM inquiries q JOIN conversations c ON c.listing_id = q.listing_id AND c.client_id = q.user_id
+  WHERE NOT EXISTS (SELECT 1 FROM messages m WHERE m.conversation_id = c.id AND m.sender_id = q.user_id
+                    AND m.created_at = q.created_at);
+
+-- Signalements : catégories + suivi par la modération ; signalement d'utilisateurs depuis la messagerie
+ALTER TABLE reports ADD COLUMN IF NOT EXISTS category TEXT NOT NULL DEFAULT 'autre',
+                    ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'open';
+CREATE TABLE IF NOT EXISTS user_reports (
+  id               BIGSERIAL PRIMARY KEY,
+  reporter_id      BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  target_id        BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  conversation_id  BIGINT REFERENCES conversations(id) ON DELETE SET NULL,
+  category         TEXT NOT NULL,
+  reason           TEXT NOT NULL,
+  status           TEXT NOT NULL DEFAULT 'open',
+  created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (reporter_id, target_id)
+);

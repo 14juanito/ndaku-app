@@ -42,6 +42,10 @@ class Config:
         # ou "public" (URL directes *.public.blob.vercel-storage.com).
         self.BLOB_ACCESS = env.get("NDAKU_BLOB_ACCESS", "private")
         self.CRON_SECRET = env.get("CRON_SECRET")
+        # Fond de carte : OpenStreetMap par défaut ; remplaçable (MapTiler, Stadia…) pour un trafic important.
+        self.TILE_URL = env.get("NDAKU_TILE_URL", "https://tile.openstreetmap.org/{z}/{x}/{y}.png")
+        self.TILE_ATTRIBUTION = env.get("NDAKU_TILE_ATTRIBUTION",
+                                        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>')
         self.SESSION_DAYS = int(env.get("SESSION_DAYS", "30"))
         self.LOCAL_UPLOADS = env.get("NDAKU_UPLOADS", os.path.join(os.path.dirname(os.path.dirname(__file__)), "instance", "uploads"))
         self.TRUST_PROXY = _bool("NDAKU_TRUST_PROXY")

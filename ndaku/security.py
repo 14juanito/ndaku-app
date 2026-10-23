@@ -103,7 +103,7 @@ def current_user():
     tok = _presented_token()
     if tok and len(tok) < 200:
         u = one("""SELECT u.*, s.id AS session_id, s.last_seen FROM sessions s JOIN users u ON u.id=s.user_id
-                   WHERE s.token_hash=%s AND s.expires_at > now()""", (sha(tok),))
+                   WHERE s.token_hash=%s AND s.expires_at > now() AND u.suspended_at IS NULL""", (sha(tok),))
         if u:
             if now() - u["last_seen"] > timedelta(hours=1):
                 run("UPDATE sessions SET last_seen=now() WHERE id=%s", (u["session_id"],))
@@ -121,7 +121,7 @@ def apply_session_cookie(resp):
     return resp
 
 
-def require(*roles, verified_email=False):
+def require(*roles, verified_email=False, avatar=False):
     def deco(fn):
         @wraps(fn)
         def inner(*a, **kw):
@@ -132,6 +132,8 @@ def require(*roles, verified_email=False):
                 abort(403, "Action réservée à un autre type de compte.")
             if verified_email and cfg().REQUIRE_EMAIL_VERIFICATION and not u["email_verified"]:
                 abort(403, "Confirmez d'abord votre adresse e-mail.")
+            if avatar and not u["avatar_url"]:
+                abort(403, "Ajoutez d'abord une photo de profil.")
             return fn(*a, **kw)
         return inner
     return deco

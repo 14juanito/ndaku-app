@@ -38,17 +38,17 @@ CITY_QUERIES = {
 # (ville, commune, offre, type, titre, prix USD, chambres, sdb, m², meublé, adresse)
 LISTINGS = [
     ("Kinshasa", "Gombe", "location", "appartement", "Appartement moderne vue sur le fleuve Congo", 1800, 3, 2, 140, 1, "Avenue de la Justice 12"),
-    ("Kinshasa", "Ngaliema", "location", "villa", "Villa avec piscine et jardin, quartier calme", 3500, 5, 4, 420, 1, "Avenue Mbakana 45, Ma Campagne"),
+    ("Kinshasa", "Ngaliema", "location", "villa", "Villa avec piscine et jardin, quartier calme", 3500, 5, 4, 420, 1, "Avenue Mbakana 45"),
     ("Kinshasa", "Limete", "location", "maison", "Maison familiale proche du boulevard Lumumba", 650, 3, 2, 180, 0, "7e rue Limete Industriel 31"),
     ("Kinshasa", "Bandalungwa", "location", "studio", "Studio meublé idéal étudiant ou jeune actif", 220, 1, 1, 32, 1, "Avenue Kasa-Vubu 8"),
-    ("Kinshasa", "Mont-Ngafula", "vente", "villa", "Villa neuve à vendre, titre foncier disponible", 185000, 4, 3, 380, 0, "Route de Matadi, Mitendi 2"),
+    ("Kinshasa", "Mont-Ngafula", "vente", "villa", "Villa neuve à vendre, titre foncier disponible", 185000, 4, 3, 380, 0, "Route de Matadi 2"),
     ("Kinshasa", "Lemba", "vente", "maison", "Maison à vendre près de l'université de Kinshasa", 72000, 4, 2, 250, 0, "Avenue Université 19"),
     ("Kinshasa", "Kintambo", "location", "maison", "Maison 4 chambres avec cour et parking", 900, 4, 2, 230, 0, "Avenue Lukusa 14"),
     ("Kinshasa", "Gombe", "vente", "appartement", "Appartement standing à vendre, immeuble sécurisé", 240000, 3, 2, 165, 0, "Boulevard du 30 Juin 101"),
-    ("Lubumbashi", "Golf", "location", "maison", "Maison spacieuse au quartier Golf avec parking", 900, 4, 3, 300, 0, "Avenue Kasai 22"),
+    ("Lubumbashi", "Lubumbashi", "location", "maison", "Maison spacieuse au quartier Golf avec parking", 900, 4, 3, 300, 0, "Avenue Kasai 22"),
     ("Lubumbashi", "Kenya", "vente", "maison", "Maison à vendre, grande parcelle clôturée", 98000, 5, 3, 420, 0, "Avenue Kimbangu 54"),
-    ("Goma", "Himbi", "location", "villa", "Villa avec vue sur le lac Kivu", 1500, 4, 3, 330, 1, "Avenue du Lac 9"),
-    ("Goma", "Katindo", "vente", "maison", "Maison familiale à vendre, quartier résidentiel", 64000, 3, 2, 210, 0, "Avenue des Aigles 17"),
+    ("Goma", "Goma", "location", "villa", "Villa avec vue sur le lac Kivu", 1500, 4, 3, 330, 1, "Avenue du Lac 9"),
+    ("Goma", "Karisimbi", "vente", "maison", "Maison familiale à vendre, quartier résidentiel", 64000, 3, 2, 210, 0, "Avenue des Aigles 17"),
     ("Bukavu", "Ibanda", "location", "maison", "Maison lumineuse près du lac à Ibanda", 600, 3, 2, 170, 1, "Avenue Patrice Lumumba 5"),
     ("Kisangani", "Makiso", "location", "maison", "Maison au bord du fleuve à Makiso", 450, 3, 2, 190, 0, "Avenue de l'Église 3"),
     ("Matadi", "Matadi", "vente", "maison", "Maison sur les hauteurs de Matadi", 55000, 3, 2, 200, 0, "Avenue du Port 11"),
@@ -171,6 +171,31 @@ def demo_host(n):
                   RETURNING id""", (["Jean M. (démo)", "Grace K. (démo)", "Patrick I. (démo)"][n % 3], email))["id"]
 
 
+def _insert_demo_listing(owner, title, desc, deal, pt, city, com, addr, price, bed, bath, m2, furn, r, status,
+                         photo_ids):
+    """Rattache l'annonce de démo au référentiel. L'avenue de démo est créée « en attente » au nom de l'hôte
+    de démo : elle n'apparaît jamais dans les listes publiques du référentiel."""
+    c = one("""SELECT co.id AS commune_id, co.lat, co.lng, ci.id AS city_id, pr.id AS province_id, pr.name AS province
+               FROM places co JOIN places ci ON ci.id=co.parent_id JOIN places pr ON pr.id=ci.parent_id
+               WHERE co.kind='commune' AND co.name=%s AND ci.name=%s""", (com, city))
+    m = re.match(r"^(.*?)[ ,]+(\d+)$", addr)
+    avenue, number = (m.group(1).strip(), m.group(2)) if m else (addr, str(r.randint(1, 99)))
+    av = one("""INSERT INTO places (kind, name, parent_id, source, status, created_by) VALUES ('avenue',%s,%s,'user','pending',%s)
+                ON CONFLICT (COALESCE(parent_id, 0), kind, lower(name)) DO UPDATE SET name=EXCLUDED.name RETURNING id""",
+             (avenue, c["commune_id"], owner))
+    lat, lng = c["lat"] + r.uniform(-0.008, 0.008), c["lng"] + r.uniform(-0.008, 0.008)
+    from .listings import street_key
+    key = f"{c['commune_id']}|{street_key(avenue)}|{number}|"
+    cover = one("SELECT url FROM images WHERE id=%s", (photo_ids[0],))["url"]
+    return one("""INSERT INTO listings (owner_id, title, description, deal, ptype, province, city, commune, avenue,
+                    house_number, address, province_id, city_id, commune_id, avenue_id, lat, lng, price, bedrooms,
+                    bathrooms, surface, furnished, amenities, status, addr_key, is_demo, cover_url)
+                  VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,TRUE,%s) RETURNING id""",
+               (owner, title, desc, deal, pt, c["province"], city, com, avenue, number, f"{avenue} n° {number}",
+                c["province_id"], c["city_id"], c["commune_id"], av["id"], lat, lng, price, bed, bath, m2, bool(furn),
+                json.dumps(r.choice(AMS)), status, key, cover))["id"]
+
+
 def create_demo(storage, source="illustrations", max_listings=4, status=None, budget_s=40.0):
     """Crée jusqu'à `max_listings` annonces de démo manquantes, dans un budget de temps (limite des
     fonctions Vercel). Chaque annonce est validée dès sa création. Idempotent : rappeler jusqu'à done."""
@@ -218,11 +243,8 @@ def create_demo(storage, source="illustrations", max_listings=4, status=None, bu
                            v=r.choice(["à deux pas du centre", "dans une rue résidentielle", "près de l'avenue principale"]))
         if source != "commons":
             desc = desc.replace("illustrée par une photo réelle de", "illustrée par des images générées —")
-        lid = one("""INSERT INTO listings (owner_id, title, description, deal, ptype, city, commune, address, price,
-                       bedrooms, bathrooms, surface, furnished, amenities, status, addr_key, is_demo)
-                     VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,TRUE) RETURNING id""",
-                  (owner, title, desc, deal, pt, city, com, addr, price, bed, bath, m2, bool(furn),
-                   json.dumps(r.choice(AMS)), status, af.addr_key(city, com, addr)))["id"]
+        lid = _insert_demo_listing(owner, title, desc, deal, pt, city, com, addr, price, bed, bath, m2, furn,
+                                   r, status, photo_ids)
         for pos, pid in enumerate(photo_ids):
             run("UPDATE images SET listing_id=%s, position=%s WHERE id=%s", (lid, pos, pid))
         db().commit()

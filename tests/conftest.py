@@ -32,7 +32,9 @@ def app(tmp_path, keys, monkeypatch):
     os.makedirs(tmp_path / "up", exist_ok=True)
     with pool(DB).connection() as con:
         tables = [r["tablename"] for r in con.execute("SELECT tablename FROM pg_tables WHERE schemaname='public'")]
-        con.execute("TRUNCATE " + ", ".join(tables) + " RESTART IDENTITY CASCADE")
+        con.execute("TRUNCATE " + ", ".join(t for t in tables if t != "schema_meta") + " RESTART IDENTITY CASCADE")
+        from ndaku.places_seed import seed
+        seed(con)
     # Les JWKS Google/Apple sont remplacés par notre clé de test (aucun accès réseau).
     monkeypatch.setattr(oauth, "_signing_key", lambda provider, token: keys["good"].public_key())
     return a
@@ -61,10 +63,39 @@ def new_client(app):
     return lambda: Client(app)
 
 
-def register(c, email, role="client", name="Test User", pw=PW):
-    r = c.post("/api/auth/register", json={"name": name, "email": email, "password": pw, "role": role})
+def avatar_bytes(color=(80, 120, 200)):
+    from PIL import Image, ImageDraw
+    im = Image.new("RGB", (400, 400), color)
+    ImageDraw.Draw(im).ellipse((120, 60, 280, 220), fill=(240, 200, 170))
+    return jpeg(im)
+
+
+def set_avatar(c):
+    r = c.post("/api/auth/me/avatar", data={"image": (io.BytesIO(avatar_bytes()), "a.jpg")},
+               content_type="multipart/form-data")
+    assert r.status_code == 200, r.json
+    return r.json["avatar"]
+
+
+def register(c, email, role="client", name="Test User", pw=PW, avatar=True, phone=""):
+    r = c.post("/api/auth/register", json={"name": name, "email": email, "password": pw, "role": role, "phone": phone})
     assert r.status_code == 201, r.json
+    if avatar:
+        set_avatar(c)
     return r.json["user"]
+
+
+def commune_id(name="Gombe", city="Kinshasa"):
+    with pool(DB).connection() as con:
+        return con.execute("""SELECT c.id FROM places c JOIN places v ON v.id=c.parent_id
+                              WHERE c.kind='commune' AND c.name=%s AND v.name=%s""", (name, city)).fetchone()["id"]
+
+
+def avenue(c, name="Avenue Test", commune="Gombe"):
+    cid = commune_id(commune)
+    r = c.post("/api/places", json={"parent_id": cid, "kind": "avenue", "name": name})
+    assert r.status_code in (200, 201), r.json
+    return {"commune_id": cid, "avenue_id": r.json["id"], "lat": -4.30, "lng": 15.30}
 
 
 def jpeg(img, q=90):
@@ -78,20 +109,20 @@ def upload(c, seed=None, raw=None, name="p.jpg"):
     return c.post("/api/uploads", data={"image": (io.BytesIO(data), name)}, content_type="multipart/form-data")
 
 
-def listing_payload(image_ids, **over):
+def listing_payload(image_ids, loc, **over):
     return {"title": "Belle maison familiale", "description": "Maison lumineuse, quartier calme et sécurisé, "
             "proche des écoles et commerces, eau et électricité.", "deal": "location", "ptype": "maison",
-            "city": "Kinshasa", "commune": "Gombe", "address": "Avenue Test 1", "price": 800, "bedrooms": 3,
-            "bathrooms": 2, "surface": 150, "image_ids": image_ids, **over}
+            "house_number": "1", "price": 800, "bedrooms": 3, "bathrooms": 2, "surface": 150,
+            "image_ids": image_ids, **loc, **over}
 
 
-def publish(c, seeds, **over):
+def publish(c, seeds, avenue_name="Avenue Test", **over):
     ids = []
     for s in seeds:
         r = upload(c, s)
         assert r.status_code == 201, r.json
         ids.append(r.json["id"])
-    return c.post("/api/listings", json=listing_payload(ids, **over))
+    return c.post("/api/listings", json=listing_payload(ids, avenue(c, avenue_name), **over))
 
 
 def id_token(keys, provider="google", key="good", alg="RS256", **claims):

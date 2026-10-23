@@ -14,7 +14,9 @@ PUBLIC_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file
 CSP = ("default-src 'self'; "
        "script-src 'self' https://accounts.google.com/gsi/client https://appleid.cdn-apple.com; "
        "style-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/style; "
-       "img-src 'self' data: blob: https://*.public.blob.vercel-storage.com https://*.googleusercontent.com; "
+       "img-src 'self' data: blob: https://*.public.blob.vercel-storage.com https://*.googleusercontent.com "
+       "https://tile.openstreetmap.org; "
+       "font-src 'self'; "
        "connect-src 'self' https://accounts.google.com/gsi/; "
        "frame-src https://accounts.google.com/gsi/ https://appleid.apple.com; "
        "object-src 'none'; base-uri 'none'; form-action 'self' https://appleid.apple.com; frame-ancestors 'none'")
@@ -27,14 +29,15 @@ def create_app(**overrides):
     app = Flask(__name__, static_folder=None if cfg.ON_VERCEL else PUBLIC_DIR, static_url_path="")
     app.config.update(NDAKU=cfg, STORAGE=Storage(cfg), MAX_CONTENT_LENGTH=4_400_000, JSON_SORT_KEYS=False)
     app.json.ensure_ascii = False
+    app.json.sort_keys = False
     logging.basicConfig(level=logging.INFO)
 
     if cfg.DATABASE_URL not in _migrated:
         dbm.migrate(cfg.DATABASE_URL)
         _migrated.add(cfg.DATABASE_URL)
 
-    from . import admin, auth, listings
-    for bp in (auth.bp, listings.bp, admin.bp):
+    from . import admin, auth, listings, messages, places
+    for bp in (auth.bp, listings.bp, admin.bp, places.bp, messages.bp):
         app.register_blueprint(bp)
 
     app.before_request(csrf_check)
@@ -62,7 +65,12 @@ def create_app(**overrides):
         if cfg.SECURE_COOKIES:
             h["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains"
         if request.path.startswith("/api/"):
-            h["Cache-Control"] = "no-store"
+            # Réponses publiques identiques pour tous (g.cache_seconds) : mises en cache par le CDN.
+            secs = g.get("cache_seconds")
+            if secs and resp.status_code == 200 and "Set-Cookie" not in h:
+                h["Cache-Control"] = f"public, max-age=0, s-maxage={secs}, stale-while-revalidate={secs * 4}"
+            else:
+                h["Cache-Control"] = "no-store"
         if g.get("retry_after"):
             h["Retry-After"] = str(g.retry_after)
         return resp
@@ -87,10 +95,11 @@ def create_app(**overrides):
         return resp
 
     @app.get("/media/<name>")
-    def private_media(name):
+    @app.get("/media/a/<name>", defaults={"folder": "avatars"})
+    def private_media(name, folder="listings"):
         """Photos d'un store Blob privé, servies par l'app puis mises en cache par le CDN Vercel
         (nom de fichier aléatoire et immuable)."""
-        data = app.config["STORAGE"].get_private(name)
+        data = app.config["STORAGE"].get_private(name, folder)
         if data is None:
             abort(404)
         resp = app.response_class(data, mimetype="image/jpeg")

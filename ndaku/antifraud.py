@@ -53,7 +53,7 @@ def _phash(img):
     return _bits_to_int(low > np.median(low.flatten()[1:]))
 
 
-def load_image(raw):
+def load_image(raw, min_w=MIN_W, min_h=MIN_H):
     """Décode et valide un fichier image ; retourne une image RGB normalisée."""
     try:
         # Seuls les décodeurs JPEG/PNG/WebP sont autorisés (surface d'attaque réduite).
@@ -65,8 +65,8 @@ def load_image(raw):
         img = ImageOps.exif_transpose(img).convert("RGB")
     except (UnidentifiedImageError, OSError, Image.DecompressionBombError, SyntaxError):
         raise ImageRejected("Fichier illisible ou format non accepté (JPEG, PNG ou WebP uniquement).")
-    if img.width < MIN_W or img.height < MIN_H:
-        raise ImageRejected(f"Image trop petite (minimum {MIN_W}×{MIN_H}px).")
+    if img.width < min_w or img.height < min_h:
+        raise ImageRejected(f"Image trop petite (minimum {min_w}×{min_h}px).")
     if np.asarray(img.convert("L")).std() < 6:
         raise ImageRejected("Image quasi uniforme (vide ou placeholder) refusée.")
     return img

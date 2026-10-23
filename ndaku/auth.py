@@ -1,9 +1,10 @@
 """Comptes : e-mail + mot de passe, Google, Apple (iCloud). Sessions web (cookie) et mobiles (Bearer)."""
+import re
 import secrets
 import time
 from datetime import timedelta
 
-from flask import Blueprint, abort, jsonify, request
+from flask import Blueprint, abort, current_app, jsonify, request
 
 from . import mailer, oauth
 from .db import all_, committed, one, run
@@ -30,8 +31,12 @@ def text(d, key, n):
 def public_user(u):
     providers = [r["provider"] for r in
                  all_("SELECT provider FROM identities WHERE user_id=%s", (u["id"],))]
+    unread = one("""SELECT COUNT(*)::int AS n FROM conversations c WHERE
+                      (c.client_id=%(u)s AND c.last_message_at > c.client_read_at)
+                   OR (c.host_id=%(u)s AND c.last_message_at > c.host_read_at)""", {"u": u["id"]})["n"]
     return {"id": u["id"], "name": u["name"], "email": u["email"], "role": u["role"], "verified": u["verified"],
-            "email_verified": u["email_verified"], "has_password": u["pw_hash"] is not None, "providers": providers}
+            "email_verified": u["email_verified"], "has_password": u["pw_hash"] is not None, "providers": providers,
+            "avatar": u["avatar_url"], "phone": u["phone"], "unread": unread}
 
 
 def session_response(user, kind, status=200):
@@ -123,6 +128,8 @@ def login():
         abort(400, "Mot de passe requis.")
     rate_limit(f"login-email:{email}", 10, 3600, "Trop de tentatives pour ce compte. Réessayez plus tard.")
     u = one("SELECT * FROM users WHERE lower(email)=%s", (email,))
+    if u and u["suspended_at"] and check_password(u["pw_hash"], pw[:128]):
+        abort(403, "Ce compte est suspendu. Contactez le support Ndaku.")
     if u and u["locked_until"] and u["locked_until"] > now():
         check_password(None, pw)
         abort(429, "Compte temporairement verrouillé après plusieurs échecs. Réessayez plus tard.")
@@ -276,6 +283,11 @@ def oauth_login(provider):
             (user["id"], provider, info["sub"], info["email"]))
         audit("identity_linked", user["id"], provider=provider)
         user = one("SELECT * FROM users WHERE id=%s", (user["id"],))
+    if user["suspended_at"]:
+        abort(403, "Ce compte est suspendu. Contactez le support Ndaku.")
+    if info.get("picture") and not user["avatar_url"]:
+        run("UPDATE users SET avatar_url=%s WHERE id=%s", (info["picture"], user["id"]))
+        user = one("SELECT * FROM users WHERE id=%s", (user["id"],))
     user = maybe_promote_admin(user)
     audit("login", user["id"], method=provider)
     return session_response(user, kind_of(d))
@@ -288,3 +300,51 @@ def sessions():
         "SELECT id, kind, user_agent, created_at, last_seen FROM sessions WHERE user_id=%s AND expires_at>now() "
         "ORDER BY last_seen DESC", (current_user()["id"],))
     return jsonify(items=rows)
+
+
+# ------------------------------------------------------------------------ profil
+AVATAR_SIZE = 400
+
+
+@bp.post("/me/avatar")
+@require()
+def set_avatar():
+    """Photo de profil (obligatoire pour publier, écrire ou noter) : recadrée en carré, ré-encodée."""
+    from PIL import Image, ImageOps
+
+    from . import antifraud as af
+    from .storage import StorageUnavailable
+    u = current_user()
+    rate_limit(f"avatar:{u['id']}", 10, 3600)
+    f = request.files.get("image")
+    if not f:
+        abort(400, "Fichier « image » manquant.")
+    try:
+        img = af.load_image(f.read(), min_w=200, min_h=200)
+    except af.ImageRejected as e:
+        abort(422, str(e))
+    img = ImageOps.fit(img, (AVATAR_SIZE, AVATAR_SIZE), Image.LANCZOS)
+    st = current_app.config["STORAGE"]
+    try:
+        url, key = st.put(af.to_jpeg(img), folder="avatars")
+    except StorageUnavailable:
+        abort(503, "Stockage des photos non configuré.")
+    old = u["avatar_key"]
+    run("UPDATE users SET avatar_url=%s, avatar_key=%s WHERE id=%s", (url, key, u["id"]))
+    if old:
+        st.delete([old])
+    return jsonify(avatar=url)
+
+
+@bp.patch("/me")
+@require()
+def update_me():
+    u, d = current_user(), body()
+    name = text(d, "name", 80) if "name" in d else u["name"]
+    phone = text(d, "phone", 30) if "phone" in d else u["phone"]
+    if len(name) < 2:
+        abort(400, "Nom invalide.")
+    if phone and not re.fullmatch(r"\+?[0-9 ().-]{6,30}", phone):
+        abort(400, "Numéro de téléphone invalide.")
+    run("UPDATE users SET name=%s, phone=%s WHERE id=%s", (name, phone, u["id"]))
+    return jsonify(user=public_user(one("SELECT * FROM users WHERE id=%s", (u["id"],))))

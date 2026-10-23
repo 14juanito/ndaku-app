@@ -4,7 +4,7 @@ import io
 import pytest
 from PIL import ImageOps
 
-from conftest import jpeg, listing_payload, publish, register, upload
+from conftest import avenue, commune_id, jpeg, listing_payload, publish, register, upload
 from ndaku.demo import render_house
 
 
@@ -20,7 +20,7 @@ def two_hosts(client, new_client):
 def test_client_cannot_publish_or_upload(client):
     register(client, "c@x.cd", "client")
     assert upload(client, 1).status_code == 403
-    assert client.post("/api/listings", json=listing_payload([1, 2, 3])).status_code == 403
+    assert client.post("/api/listings", json=listing_payload([1, 2, 3], {"commune_id": 1, "avenue_id": 1})).status_code == 403
 
 
 def test_anonymous_writes_rejected(client):
@@ -39,7 +39,7 @@ def test_idor_other_host_listing(two_hosts):
 def test_cannot_steal_other_hosts_pending_photos(two_hosts):
     a, b = two_hosts
     ids = [upload(a, s).json["id"] for s in (1, 2, 3)]
-    r = b.post("/api/listings", json=listing_payload(ids, address="Avenue B 2"))
+    r = b.post("/api/listings", json=listing_payload(ids, avenue(b, "Avenue B")))
     assert r.status_code == 400
     assert b.delete(f"/api/uploads/{ids[0]}").status_code == 404
 
@@ -47,8 +47,9 @@ def test_cannot_steal_other_hosts_pending_photos(two_hosts):
 def test_cannot_reuse_photos_already_attached(two_hosts):
     a, _ = two_hosts
     ids = [upload(a, s).json["id"] for s in (1, 2, 3)]
-    assert a.post("/api/listings", json=listing_payload(ids)).status_code == 201
-    r = a.post("/api/listings", json=listing_payload(ids, address="Autre adresse 9"))
+    loc = avenue(a)
+    assert a.post("/api/listings", json=listing_payload(ids, loc)).status_code == 201
+    r = a.post("/api/listings", json=listing_payload(ids, loc, house_number="9"))
     assert r.status_code == 400
 
 
@@ -67,7 +68,8 @@ def test_pending_listing_hidden_from_public(two_hosts, new_client):
 def test_mass_assignment_on_listing(two_hosts):
     a, _ = two_hosts
     ids = [upload(a, s).json["id"] for s in (1, 2, 3)]
-    r = a.post("/api/listings", json=listing_payload(ids, status="active", risk_score=-999, owner_id=999, is_demo=True))
+    r = a.post("/api/listings", json=listing_payload(ids, avenue(a), status="active", risk_score=-999, owner_id=999, is_demo=True,
+                                                       addr_key="x", cover_url="javascript:alert(1)"))
     assert r.status_code == 201
     d = a.get(f"/api/listings/{r.json['id']}").json
     assert d["host"]["name"] == "Test User" and d["is_demo"] is False and d["risk_score"] >= 0
@@ -93,25 +95,31 @@ def test_duplicate_within_own_pending_uploads(two_hosts):
 def test_same_address_by_another_host_blocked(two_hosts):
     a, b = two_hosts
     publish(a, [1, 2, 3])
-    r = publish(b, [4, 5, 6], address="  avenue TEST 1 ")  # normalisation : casse/espaces
+    r = publish(b, [4, 5, 6], avenue_name="  avenue TEST ")  # même avenue, casse/espaces différents
     assert r.status_code == 409
+    r = publish(b, [7, 8, 9], avenue_name="Av. Test")  # autre écriture → autre lieu, mais même adresse normalisée
+    assert r.status_code == 409 and "déjà publiée" in r.json["error"]
 
 
 def test_contact_info_and_unrealistic_values_blocked(two_hosts):
     a, _ = two_hosts
     ids = [upload(a, s).json["id"] for s in (1, 2, 3)]
-    assert a.post("/api/listings", json=listing_payload(ids, description="Appelez le 0812345678 " + "x" * 60)).status_code == 400
-    assert a.post("/api/listings", json=listing_payload(ids, price=1)).status_code == 400
-    assert a.post("/api/listings", json=listing_payload(ids, bedrooms=10, surface=40)).status_code == 400
-    assert a.post("/api/listings", json=listing_payload(ids, city="Paris")).status_code == 400
-    assert a.post("/api/listings", json=listing_payload(ids[:2])).status_code == 400
+    loc = avenue(a)
+    assert a.post("/api/listings", json=listing_payload(ids, loc, description="Appelez le 0812345678 " + "x" * 60)).status_code == 400
+    assert a.post("/api/listings", json=listing_payload(ids, loc, price=1)).status_code == 400
+    assert a.post("/api/listings", json=listing_payload(ids, loc, bedrooms=10, surface=40)).status_code == 400
+    assert a.post("/api/listings", json=listing_payload(ids, {**loc, "commune_id": commune_id("Lemba")})).status_code == 400
+    assert a.post("/api/listings", json=listing_payload(ids, {**loc, "lat": 48.85, "lng": 2.35})).status_code == 400  # Paris
+    assert a.post("/api/listings", json=listing_payload(ids, {**loc, "avenue_id": 999999})).status_code == 400
+    assert a.post("/api/listings", json=listing_payload(ids, loc, house_number="<script>")).status_code == 400
+    assert a.post("/api/listings", json=listing_payload(ids[:2], loc)).status_code == 400
 
 
 def test_daily_listing_quota(two_hosts):
     a, _ = two_hosts
     for i in range(5):
-        assert publish(a, [10 * i + 1, 10 * i + 2, 10 * i + 3], address=f"Avenue Q {i}").status_code == 201
-    assert publish(a, [91, 92, 93], address="Avenue Q 9").status_code == 429
+        assert publish(a, [10 * i + 1, 10 * i + 2, 10 * i + 3], house_number=str(i + 1)).status_code == 201
+    assert publish(a, [91, 92, 93], house_number="99").status_code == 429
 
 
 # ------------------------------------------------------------------- upload abusif
@@ -172,7 +180,7 @@ def test_review_requires_inquiry_and_one_per_user(two_hosts, new_client):
     c = new_client()
     register(c, "c@x.cd", "client")
     assert c.post(f"/api/listings/{lid}/reviews", json={"rating": 5, "comment": "Excellent bien !"}).status_code == 403
-    assert c.post(f"/api/listings/{lid}/inquiries", json={"message": "Bonjour, toujours disponible ?"}).status_code == 201
+    assert c.post(f"/api/listings/{lid}/conversation", json={"message": "Bonjour, toujours disponible ?"}).status_code == 201
     assert c.post(f"/api/listings/{lid}/reviews", json={"rating": 9, "comment": "Excellent bien !"}).status_code == 400
     assert c.post(f"/api/listings/{lid}/reviews", json={"rating": True, "comment": "Excellent bien !"}).status_code == 400
     assert c.post(f"/api/listings/{lid}/reviews", json={"rating": 5, "comment": "Excellent bien !"}).status_code == 201
@@ -197,24 +205,13 @@ def test_three_reports_hide_listing(two_hosts, new_client):
     assert new_client().get(f"/api/listings/{lid}").status_code == 404
 
 
-def test_host_phone_only_visible_to_concerned_host(two_hosts, new_client):
-    a, b = two_hosts
-    lid = publish(a, [1, 2, 3]).json["id"]
-    c = new_client()
-    c.post("/api/auth/register", json={"name": "Client", "email": "c@x.cd", "password": "Kinshasa-2026x",
-                                       "role": "client", "phone": "+243 800 000 000"})
-    c.post(f"/api/listings/{lid}/inquiries", json={"message": "Bonjour, je voudrais visiter."})
-    assert a.get("/api/my/inquiries").json["items"][0]["who_phone"] == "+243 800 000 000"
-    assert b.get("/api/my/inquiries").json["items"] == []
-
-
 def test_inquiry_date_validation(two_hosts, new_client):
     a, _ = two_hosts
     lid = publish(a, [1, 2, 3]).json["id"]
     c = new_client()
     register(c, "c@x.cd")
     for d in ("2001-01-01", "pas-une-date", "9999-12-31"):
-        assert c.post(f"/api/listings/{lid}/inquiries", json={"message": "Bonjour visite ?", "preferred_date": d}).status_code == 400
+        assert c.post(f"/api/listings/{lid}/conversation", json={"message": "Bonjour visite ?", "date": d}).status_code == 400
 
 
 # ------------------------------------------------------------------------- modération
@@ -248,8 +245,9 @@ def test_owner_cannot_delete_listing_under_moderation(two_hosts):
 def test_boolean_image_ids_and_contact_in_address(two_hosts):
     a, _ = two_hosts
     ids = [upload(a, s).json["id"] for s in (1, 2, 3)]
-    assert a.post("/api/listings", json=listing_payload([True, 2, 3])).status_code == 400
-    assert a.post("/api/listings", json=listing_payload(ids, address="Appelez 0812345678")).status_code == 400
+    loc = avenue(a)
+    assert a.post("/api/listings", json=listing_payload([True, 2, 3], loc)).status_code == 400
+    assert a.post("/api/listings", json=listing_payload(ids, loc, house_number="0812345678")).status_code == 400
 
 
 def test_demo_import_skips_failures_and_continues(app, monkeypatch, client):
@@ -276,32 +274,6 @@ def test_private_blob_store_photos_served_via_media(app, client, monkeypatch):
     class Res:
         def __init__(self, body):
             self.body = body
-    monkeypatch.setattr(vb, "put_blob", lambda path, body, **kw: store.update({path: (bytes(body), kw["access"])}))
-    monkeypatch.setattr(vb, "get_blob", lambda path, access: Res(store[path][0]) if path in store
-                        else (_ for _ in ()).throw(vb.BlobNotFoundError("absent")))
-    monkeypatch.setattr(vb, "delete_blob", lambda keys: [store.pop(k, None) for k in keys])
-    st = app.config["STORAGE"]
-    st.blob, st.cfg.BLOB_ACCESS = True, "private"
-    register(client, "h@x.cd", "host")
-    r = upload(client, 1)
-    assert r.status_code == 201 and r.json["url"].startswith("/media/")
-    assert all(acc == "private" for _, acc in store.values())
-    img = client.get(r.json["url"])
-    assert img.status_code == 200 and img.mimetype == "image/jpeg" and "immutable" in img.headers["Cache-Control"]
-    assert "Set-Cookie" not in img.headers
-    for bad in ("../secret.jpg", "x" * 32 + ".png", "listings%2F" + "a" * 32 + ".jpg"):
-        assert client.get(f"/media/{bad}").status_code == 404
-    assert client.delete(f"/api/uploads/{r.json['id']}").status_code == 200 and not store
-
-
-def test_private_blob_store_photos_served_via_media(app, client, monkeypatch):
-    """Store Vercel Blob privé : photo écrite en privé, servie par /media/ avec cache CDN, noms validés."""
-    import vercel.blob.sync as vb
-    store = {}
-
-    class Res:
-        def __init__(self, body):
-            self.body = body
 
     def get(path, access):
         if path not in store:
@@ -310,9 +282,9 @@ def test_private_blob_store_photos_served_via_media(app, client, monkeypatch):
     monkeypatch.setattr(vb, "put_blob", lambda path, body, **kw: store.update({path: (bytes(body), kw["access"])}))
     monkeypatch.setattr(vb, "get_blob", get)
     monkeypatch.setattr(vb, "delete_blob", lambda keys: [store.pop(k, None) for k in keys])
+    register(client, "h@x.cd", "host")  # avatar stocké en local avant de basculer sur le store privé
     st = app.config["STORAGE"]
     st.blob, st.cfg.BLOB_ACCESS = True, "private"
-    register(client, "h@x.cd", "host")
     r = upload(client, 1)
     assert r.status_code == 201 and r.json["url"].startswith("/media/")
     assert all(acc == "private" for _, acc in store.values())
@@ -331,7 +303,12 @@ def test_vercel_without_blob_starts_and_refuses_uploads_cleanly(app):  # fixture
     vapp = create_app(DATABASE_URL=DB, ON_VERCEL=True, BLOB_TOKEN=None, LOCAL_UPLOADS="/proc/interdit",
                      REQUIRE_EMAIL_VERIFICATION=False)
     c = Client(vapp)
-    register(c, "h@x.cd", "host")
+    register(c, "h@x.cd", "host", avatar=False)
+    assert c.post("/api/auth/me/avatar", data={"image": (io.BytesIO(jpeg(render_house(9))), "a.jpg")},
+                  content_type="multipart/form-data").status_code == 503
+    from ndaku.db import pool
+    with pool(DB).connection() as con:
+        con.execute("UPDATE users SET avatar_url='/media/a/' || repeat('a', 32) || '.jpg'")
     r = upload(c, 1)
     assert r.status_code == 503 and "Blob" in r.json["error"]
 

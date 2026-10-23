@@ -2,20 +2,27 @@
 <html lang="fr">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Ndaku – Trouvez votre maison</title>
-<meta name="description" content="Ndaku : louez ou achetez une maison en RDC, avec des annonces vérifiées.">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Ndaku – Trouvez votre maison en RDC</title>
+<meta name="description" content="Ndaku : louez ou achetez une maison en RDC. Annonces vérifiées, carte, messagerie sécurisée.">
 <meta name="theme-color" content="#F26122">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="preload" href="/fonts/poppins-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/fonts/poppins-latin-600-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/vendor/leaflet/leaflet.css">
+<link rel="stylesheet" href="/vendor/markercluster/MarkerCluster.css">
 <link rel="stylesheet" href="/style.css">
 </head>
 <body>
 <header class="hdr" id="hdr"></header>
 <nav class="cats" id="cats" aria-label="Catégories"></nav>
 <main id="view" aria-live="polite"></main>
-<footer class="ftr">© 2026 Ndaku · Chaque photo est unique, chaque annonce est contrôlée.</footer>
+<footer class="ftr">© 2026 Ndaku · Chaque photo est unique, chaque adresse aussi. · Carte © contributeurs OpenStreetMap</footer>
+<nav class="tabbar" id="tabbar" aria-label="Navigation principale"></nav>
 <div id="modal-root"></div>
 <div id="toast" role="status"></div>
+<script src="/vendor/leaflet/leaflet.js"></script>
+<script src="/vendor/markercluster/leaflet.markercluster.js"></script>
 <script src="/app.js"></script>
 </body>
 </html>

@@ -28,7 +28,7 @@ def pool(url, side=False):
         return p
 
 
-SCHEMA_VERSION = 2  # à incrémenter à chaque modification de schema.sql
+SCHEMA_VERSION = 3  # à incrémenter à chaque modification de schema.sql
 
 
 def migrate(url):
@@ -41,6 +41,8 @@ def migrate(url):
                 return
         con.execute("SELECT pg_advisory_xact_lock(424242)")
         con.execute(open(_SCHEMA).read())
+        from .places_seed import seed
+        seed(con)
         con.execute("CREATE TABLE IF NOT EXISTS schema_meta (version INT NOT NULL)")
         con.execute("DELETE FROM schema_meta")
         con.execute("INSERT INTO schema_meta VALUES (%s)", (SCHEMA_VERSION,))

@@ -4,6 +4,7 @@ import re
 import uuid
 
 _SAFE = re.compile(r"^[a-f0-9]{32}\.jpg$")
+FOLDERS = {"listings": "", "avatars": "a/"}  # dossier du store → préfixe d'URL /media/
 
 
 class StorageUnavailable(Exception):
@@ -24,17 +25,19 @@ class Storage:
         # Sur Vercel le disque est en lecture seule : pas de repli local, il faut un store Blob.
         self.available = self.blob or not cfg.ON_VERCEL
 
-    def put(self, jpeg: bytes):
-        """Retourne (url à afficher, clé de stockage)."""
+    def put(self, jpeg: bytes, folder="listings"):
+        """Retourne (url à afficher, clé de stockage). folder : listings (photos) ou avatars."""
         name = f"{uuid.uuid4().hex}.jpg"
+        if folder not in FOLDERS:
+            raise ValueError(folder)
         if not self.available:
             raise StorageUnavailable()
         if self.blob:
             from vercel.blob.sync import put_blob
             if self.cfg.BLOB_ACCESS == "private":
-                put_blob(f"listings/{name}", jpeg, access="private", content_type="image/jpeg")
-                return f"/media/{name}", f"listings/{name}"
-            r = put_blob(f"listings/{name}", jpeg, access="public", content_type="image/jpeg",
+                put_blob(f"{folder}/{name}", jpeg, access="private", content_type="image/jpeg")
+                return f"/media/{FOLDERS[folder]}{name}", f"{folder}/{name}"
+            r = put_blob(f"{folder}/{name}", jpeg, access="public", content_type="image/jpeg",
                          cache_control_max_age=31536000)
             return r.url, r.url
         os.makedirs(self.cfg.LOCAL_UPLOADS, exist_ok=True)
@@ -60,13 +63,13 @@ class Storage:
                 except OSError:
                     pass
 
-    def get_private(self, name):
+    def get_private(self, name, folder="listings"):
         """Octets d'une photo d'un store privé, ou None (nom validé : pas de traversée de chemin)."""
-        if not self.blob or not _SAFE.match(name or ""):
+        if not self.blob or not _SAFE.match(name or "") or folder not in FOLDERS:
             return None
         from vercel.blob.sync import BlobNotFoundError, get_blob
         try:
-            return get_blob(f"listings/{name}", access="private").body
+            return get_blob(f"{folder}/{name}", access="private").body
         except BlobNotFoundError:
             return None
 
