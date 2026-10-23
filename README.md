@@ -40,6 +40,7 @@ Marketplace style Airbnb (orange/blanc). Web aujourd'hui, apps mobiles ensuite :
 | `APPLE_REDIRECT_URI` | URL du site (ex. `https://ndaku.vercel.app`) déclarée chez Apple |
 | `CRON_SECRET` | secret aléatoire pour la tâche planifiée |
 | `RESEND_API_KEY`, `MAIL_FROM` | envoi des e-mails (vérification, mot de passe oublié) ; active la vérification obligatoire |
+| `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM`, `TWILIO_WHATSAPP_FROM` | (facultatif) notifications par SMS / WhatsApp et code de confirmation du téléphone ; sans eux, ces canaux sont masqués |
 | `NDAKU_PUBLIC_URL` | URL publique utilisée dans les liens des e-mails |
 | `NDAKU_BLOB_ACCESS` | `private` (défaut, photos servies via `/media/`) ou `public` selon le store Blob |
 | `NDAKU_TILE_URL`, `NDAKU_TILE_ATTRIBUTION` | fond de carte (OpenStreetMap par défaut ; MapTiler/Stadia pour un gros trafic — ajouter alors le domaine à la CSP) |

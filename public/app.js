@@ -1038,7 +1038,7 @@ async function marketCompare(l) {
   box.innerHTML = html; box.hidden = false;
 }
 const tipEl = () => $("#ctip") || Object.assign(document.body.appendChild(document.createElement("div")), { id: "ctip", className: "ctip" });
-function chartTip(e, html) { const t = tipEl(); if (!html) { t.style.opacity = 0; return; } t.innerHTML = html; t.style.opacity = 1; t.style.left = Math.min(e.clientX + 14, innerWidth - t.offsetWidth - 8) + "px"; t.style.top = (e.clientY - t.offsetHeight - 12) + "px"; }
+function chartTip(e, html) { const t = tipEl(); if (!html) { t.style.opacity = 0; return; } t.textContent = html; t.style.opacity = 1; t.style.left = Math.min(e.clientX + 14, innerWidth - t.offsetWidth - 8) + "px"; t.style.top = (e.clientY - t.offsetHeight - 12) + "px"; }
 function barChart(rows, unit) {
   const max = Math.max(...rows.map(r => r.median));
   return `<div class="hbars" role="list">${rows.map(r => `<div class="hb" role="listitem" data-tip="${esc(r.commune)} · $${fmt(Math.round(r.median))} ${unit} · ${r.n} annonces">
