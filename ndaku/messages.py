@@ -134,7 +134,10 @@ def thread(cid):
         m["mine"] = m["sender_id"] == uid
         m["warn"] = m["flagged"] and not m["mine"]
         del m["flagged"]
+    # Confirmation de lecture : jusqu'où l'autre participant a lu la discussion.
+    seen = c["host_read_at"] if c["me"] == "client" else c["client_read_at"]
     return jsonify(id=cid, listing_id=c["listing_id"], title=c["title"], cover=c["cover_url"], me=c["me"],
+                   other_read_at=seen.timestamp() if seen and seen.year > 2000 else None,
                    other=other, blocked=c["blocked_by"] is not None, blocked_by_me=c["blocked_by"] == uid,
                    messages=msgs)
 

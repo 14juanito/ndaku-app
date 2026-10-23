@@ -174,7 +174,7 @@ def test_host_review_requires_conversation_once(world):
     assert cl.get(f"/api/hosts/{hid}").json["can_review"] is True
     assert cl.post(f"/api/hosts/{hid}/reviews", json={"rating": 6, "comment": "x" * 20}).status_code == 400
     assert cl.post(f"/api/hosts/{hid}/reviews", json=review).status_code == 201
-    assert cl.post(f"/api/hosts/{hid}/reviews", json=review).status_code == 403
+    assert cl.post(f"/api/hosts/{hid}/reviews", json=review).status_code == 200  # modification, pas de doublon
     p = cl.get(f"/api/hosts/{hid}").json
     assert p["rating"] == 5 and p["reviews_count"] == 1 and len(p["listings"]) == 1 and "email" not in p
     assert cl.get(f"/api/listings/{lid}").json["host"]["rating"] == 5

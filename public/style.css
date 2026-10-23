@@ -418,3 +418,35 @@ a.hostrow:hover h2{text-decoration:underline}
 .offline a{color:#FFD2BD}
 @media(max-width:1000px){#toast{bottom:calc(var(--tab) + 84px)}}
 .meta .ic{color:var(--muted)}
+
+/* ---------------------------------------------------------------- v6 : avis à étoiles */
+.star-pick{display:inline-flex;flex-direction:row-reverse;gap:2px;vertical-align:middle}
+.star-pick input{position:absolute;opacity:0;width:1px;height:1px;pointer-events:none}
+.star-pick label{cursor:pointer;color:#C9C9C9;padding:2px;line-height:0;border-radius:6px}
+.star-pick label .ic{stroke-width:1.5}
+.star-pick input:checked~label,.star-pick label:hover,.star-pick label:hover~label{color:var(--brand)}
+.star-pick input:checked~label .ic,.star-pick label:hover .ic,.star-pick label:hover~label .ic{fill:currentColor}
+.star-pick input:focus-visible+label{outline:2px solid var(--brand);outline-offset:2px}
+.star-word{margin-left:10px;font-weight:500}
+.rev-form{margin-top:16px;padding:16px;border:1px solid var(--line);border-radius:var(--r)}
+.rev-form h3{margin:0 0 8px;font-size:16px;display:flex;gap:6px;align-items:center}
+
+/* ---------------------------------------------------------------- v6 : accusés de lecture */
+.bubble .rc{display:inline-flex;margin-left:6px;vertical-align:-3px;opacity:.85}
+.bubble.mine .rc.read{opacity:1}
+.bubble.mine:not(.visit):not(.contact) .rc.read .ic{stroke:#fff;stroke-width:2.6}
+.bubble.visit .rc.read,.bubble.contact .rc.read{color:var(--brand-d)}
+.seen{align-self:flex-end;font-size:11px;color:var(--muted);margin:-4px 4px 0}
+
+/* ---------------------------------------------------------------- v6 : paramètres */
+.settings{max-width:720px}
+.set-nav{display:flex;gap:8px;overflow-x:auto;position:sticky;top:var(--hdr);background:#fff;z-index:5;padding:8px 0 12px;margin-bottom:8px;scrollbar-width:none}
+.set-nav::-webkit-scrollbar{display:none}
+.set-nav a{flex:none;border:1px solid var(--line);border-radius:999px;padding:7px 14px;font-size:13px;font-weight:500;text-decoration:none;color:var(--ink)}
+.set-nav a:hover{border-color:var(--ink)}
+@media(max-width:760px){.set-nav{top:64px}}
+.set-sec{padding:24px 0;border-bottom:1px solid var(--line);scroll-margin-top:calc(var(--hdr) + 60px)}
+.set-sec h2{font-size:19px;font-weight:600;margin:0 0 14px;display:flex;gap:8px;align-items:center}
+.set-sec h3{font-size:15px;margin:8px 0 10px}
+.set-row{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;padding:14px 0;border-top:1px solid #F1F1F1}
+.danger-zone b{color:var(--bad)}

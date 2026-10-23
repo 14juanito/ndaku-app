@@ -28,7 +28,7 @@ def pool(url, side=False):
         return p
 
 
-SCHEMA_VERSION = 5  # à incrémenter à chaque modification de schema.sql
+SCHEMA_VERSION = 6  # à incrémenter à chaque modification de schema.sql
 
 
 def migrate(url):

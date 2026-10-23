@@ -184,7 +184,9 @@ def test_review_requires_inquiry_and_one_per_user(two_hosts, new_client):
     assert c.post(f"/api/listings/{lid}/reviews", json={"rating": 9, "comment": "Excellent bien !"}).status_code == 400
     assert c.post(f"/api/listings/{lid}/reviews", json={"rating": True, "comment": "Excellent bien !"}).status_code == 400
     assert c.post(f"/api/listings/{lid}/reviews", json={"rating": 5, "comment": "Excellent bien !"}).status_code == 201
-    assert c.post(f"/api/listings/{lid}/reviews", json={"rating": 5, "comment": "Encore 5 étoiles !"}).status_code == 409
+    assert c.post(f"/api/listings/{lid}/reviews", json={"rating": 4, "comment": "Encore 4 étoiles !"}).status_code == 200  # modification
+    d = c.get(f"/api/listings/{lid}").json
+    assert d["reviews_count"] == 1 and d["rating"] == 4  # un seul avis par client, modifiable
 
 
 def test_host_cannot_review_or_report_own_listing(two_hosts):

@@ -374,3 +374,7 @@ CREATE TABLE IF NOT EXISTS host_reviews (
   UNIQUE (host_id, user_id),
   CHECK (host_id <> user_id)
 );
+
+-- ============================================================ v6 : avis modifiables
+ALTER TABLE reviews ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ;
+ALTER TABLE host_reviews ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ;

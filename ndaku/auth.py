@@ -369,6 +369,37 @@ def update_me():
     return jsonify(user=public_user(one("SELECT * FROM users WHERE id=%s", (u["id"],))))
 
 
+@bp.post("/me/delete")
+@require()
+def delete_account():
+    """Suppression définitive du compte : annonces, photos, discussions, avis et documents."""
+    from .listings import delete_own_review
+    u, d = current_user(), body()
+    rate_limit(f"delete-account:{u['id']}", 5, 3600, "Trop d'essais. Réessayez plus tard.")
+    if u["role"] == "admin":
+        abort(400, "Un compte administrateur ne peut pas être supprimé depuis l'application.")
+    if u["pw_hash"]:
+        if not check_password(u["pw_hash"], str(d.get("password", ""))[:128]):
+            abort(403, "Mot de passe incorrect.")
+    elif d.get("confirm") != "SUPPRIMER":
+        abort(400, "Tapez SUPPRIMER pour confirmer.")
+    # Les notes laissées par l'utilisateur sont retirées des moyennes avant la suppression.
+    for table, key in (("reviews", "listing_id"), ("host_reviews", "host_id")):
+        for r in all_(f"SELECT {key} AS t FROM {table} WHERE user_id=%s", (u["id"],)):
+            delete_own_review(table, key, r["t"], u["id"])
+    keys = [r["storage_key"] for r in all_("SELECT storage_key FROM images WHERE owner_id=%s", (u["id"],))]
+    if u["avatar_key"]:
+        keys.append(u["avatar_key"])
+    end_session()
+    run("DELETE FROM users WHERE id=%s", (u["id"],))  # le reste suit par ON DELETE CASCADE
+    audit("account_deleted", None, user=u["id"])
+    try:
+        current_app.config["STORAGE"].delete(keys)
+    except Exception:  # noqa: BLE001 — fichiers orphelins nettoyables plus tard, le compte est supprimé
+        current_app.logger.exception("Suppression des fichiers du compte %s incomplète", u["id"])
+    return jsonify(ok=True)
+
+
 @bp.post("/me/phone/code")
 @require()
 def phone_code():

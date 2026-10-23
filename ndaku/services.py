@@ -273,22 +273,23 @@ def host_profile(hid):
     u = current_user()
     listings = all_(f"{BASE_SQL} WHERE l.owner_id=%s AND {VISIBLE} ORDER BY l.created_at DESC LIMIT 30", (hid,))
     reviews = all_("""SELECT r.rating, r.comment, extract(epoch FROM r.created_at)::float8 AS created_at,
-                             u.name, u.avatar_url AS avatar
+                             u.name, u.avatar_url AS avatar, r.updated_at IS NOT NULL AS edited
                       FROM host_reviews r JOIN users u ON u.id=r.user_id WHERE r.host_id=%s
                       ORDER BY r.created_at DESC LIMIT 30""", (hid,))
     n = h["host_rating_count"]
     return jsonify(id=h["id"], name=h["name"], avatar=h["avatar_url"], verified=h["verified"], since=h["since"],
                    rating=round(h["host_rating_sum"] / n, 2) if n else None, reviews_count=n,
                    listings=[card(r) for r in listings], reviews=reviews,
-                   can_review=bool(u and _can_review_host(u["id"], hid)))
+                   can_review=bool(u and _can_review_host(u["id"], hid)),
+                   my_review=one("SELECT rating, comment FROM host_reviews WHERE host_id=%s AND user_id=%s",
+                                 (hid, u["id"])) if u else None)
 
 
 def _can_review_host(uid, hid):
-    """Avoir écrit dans une conversation avec cet hôte, et ne pas l'avoir déjà noté."""
+    """Avoir écrit dans une conversation avec cet hôte (un seul avis, modifiable)."""
     return uid != hid and bool(one("""SELECT 1 FROM conversations c WHERE c.client_id=%s AND c.host_id=%s
-                                        AND EXISTS (SELECT 1 FROM messages m WHERE m.conversation_id=c.id AND m.sender_id=%s)
-                                        AND NOT EXISTS (SELECT 1 FROM host_reviews r WHERE r.host_id=%s AND r.user_id=%s)""",
-                                   (uid, hid, uid, hid, uid)))
+                                        AND EXISTS (SELECT 1 FROM messages m WHERE m.conversation_id=c.id AND m.sender_id=%s)""",
+                                   (uid, hid, uid)))
 
 
 @bp.post("/hosts/<int:hid>/reviews")
@@ -297,18 +298,20 @@ def review_host(hid):
     u, d = current_user(), body()
     if not _can_review_host(u["id"], hid):
         abort(403, "Seuls les clients ayant échangé avec cet hôte peuvent le noter, une seule fois.")
-    rating, comment = d.get("rating"), text(d, "comment", 800)
-    if isinstance(rating, str) and rating.isdigit():
-        rating = int(rating)
-    if not isinstance(rating, int) or isinstance(rating, bool) or not 1 <= rating <= 5 or len(comment) < 10:
-        abort(400, "Note de 1 à 5 et commentaire de 10 caractères minimum.")
-    if not one("""INSERT INTO host_reviews (host_id, user_id, rating, comment) VALUES (%s,%s,%s,%s)
-                  ON CONFLICT (host_id, user_id) DO NOTHING RETURNING id""", (hid, u["id"], rating, comment)):
-        abort(409, "Vous avez déjà noté cet hôte.")
-    run("UPDATE users SET host_rating_sum=host_rating_sum+%s, host_rating_count=host_rating_count+1 WHERE id=%s",
-        (rating, hid))
-    notify(hid, "review", "Vous avez reçu un nouvel avis", f"{rating}/5", f"#/hote/{hid}", external=False)
-    return jsonify(ok=True), 201
+    from .listings import parse_review, upsert_review
+    rating, comment = parse_review(d)
+    created = upsert_review("host_reviews", "host_id", hid, u["id"], rating, comment)
+    if created:
+        notify(hid, "review", "Vous avez reçu un nouvel avis", f"{rating}/5", f"#/hote/{hid}", external=False)
+    return jsonify(ok=True, created=created), 201 if created else 200
+
+
+@bp.delete("/hosts/<int:hid>/reviews/mine")
+@require()
+def delete_host_review(hid):
+    from .listings import delete_own_review
+    delete_own_review("host_reviews", "host_id", hid, current_user()["id"])
+    return jsonify(ok=True)
 
 
 # ================================================================ vérification d'identité

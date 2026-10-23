@@ -35,6 +35,11 @@ const P = {
   ban: '<circle cx="12" cy="12" r="9"/><path d="m5.6 5.6 12.8 12.8"/>',
   checkc: '<circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/>',
   check: '<path d="m4 12 5 5L20 6"/>',
+  check2: '<path d="m1.5 12.5 4.5 4.5L16 7M11 16l1 1 10-10"/>',
+  lock: '<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
+  gear: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
+  logout: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/>',
+  edit: '<path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>',
   dots: '<path d="M5 12h.01M12 12h.01M19 12h.01" stroke-width="3.2"/>',
   back: '<path d="M19 12H5M11 6l-6 6 6 6"/>',
   x: '<path d="M6 6l12 12M18 6 6 18"/>',
@@ -77,6 +82,27 @@ const AMENITY_ICON = { "Eau courante": "drop", "Électricité": "bolt", "Groupe 
 const SCORE_WORD = n => n >= 10 ? "Excellent" : n >= 8 ? "Très bon" : n >= 6 ? "Bon" : n >= 4 ? "Moyen" : "Faible";
 const RATING_WORD = { 5: "Excellent", 4: "Très bien", 3: "Correct", 2: "Décevant", 1: "Mauvais" };
 const stars = n => `<span class="stars" aria-label="${n} sur 5">${[1, 2, 3, 4, 5].map(i => `<svg class="ic ${i <= n ? "full" : ""}" width="14" height="14" viewBox="0 0 24 24" aria-hidden="true">${P.star}</svg>`).join("")}</span>`;
+const starPicker = (val = 0) => `<div class="star-pick" role="radiogroup" aria-label="Votre note">${[5, 4, 3, 2, 1].map(n =>
+  `<input type="radio" name="rating" value="${n}" id="sp${n}" ${n === val ? "checked" : ""}><label for="sp${n}" title="${n} étoile${n > 1 ? "s" : ""} · ${RATING_WORD[n]}">${ic("star", 30)}</label>`).join("")}</div><span class="star-word hint">${val ? RATING_WORD[val] : "Touchez une étoile"}</span>`;
+function reviewForm(mine, label) {
+  return `<form id="revForm" class="rev-form"><h3>${mine ? `${ic("edit", 16)} Modifier votre avis` : `Votre avis ${label}`}</h3>${starPicker(mine?.rating || 0)}
+    <div class="field"><label for="rv-c">Votre commentaire</label><textarea id="rv-c" name="comment" minlength="10" maxlength="800" required style="min-height:80px">${esc(mine?.comment || "")}</textarea></div>
+    <div class="err" id="rvErr" role="alert"></div>
+    <div class="row-actions"><button class="btn sm">${mine ? "Enregistrer les modifications" : "Publier l'avis"}</button>${mine ? `<button type="button" class="btn ghost sm" data-revdel="1">${ic("trash", 14)} Supprimer mon avis</button>` : ""}</div></form>`;
+}
+function bindReviewForm(endpoint, reload) {
+  const f = $("#revForm"); if (!f) return;
+  f.addEventListener("change", e => { if (e.target.name === "rating") f.querySelector(".star-word").textContent = RATING_WORD[e.target.value]; });
+  f.onsubmit = async e => {
+    e.preventDefault(); if (needAvatar()) return;
+    const rating = +(new FormData(f).get("rating") || 0);
+    if (!rating) { $("#rvErr").textContent = "Choisissez une note en touchant les étoiles."; return; }
+    try { const r = await api(endpoint, { json: { rating, comment: f.comment.value } }); toast(r.created ? "Merci pour votre avis !" : "Avis modifié"); reload(); }
+    catch (x) { $("#rvErr").textContent = x.message; }
+  };
+  const del = f.querySelector("[data-revdel]");
+  if (del) del.onclick = async () => { if (!confirm("Supprimer votre avis ?")) return; try { await api(endpoint + "/mine", { method: "DELETE" }); toast("Avis supprimé"); reload(); } catch (x) { toast(x.message); } };
+}
 const favLabel = on => `${ic("heart", 16)} ${on ? "Enregistré" : "Enregistrer"}`;
 const verifiedTick = `<span class="vtick" title="Identité vérifiée">${ic("checkc", 15)}</span>`;
 const CATS = [
@@ -252,7 +278,7 @@ function togglePop() {
       <a href="#/messages">Messages${u.unread ? ` (${u.unread})` : ""}</a><a href="#/notifications">Notifications${u.notif_unread ? ` (${u.notif_unread})` : ""}</a><a href="#/favorites">Favoris</a>
       ${u.role === "host" ? `<a href="#/host">Mes annonces et statistiques</a><a href="#/new">Publier une annonce</a>${u.verified ? "" : '<a href="#/verification">Vérifier mon identité</a>'}` : ""}
       <a href="#/prix">Prix du marché</a>
-      ${u.role === "admin" ? `<a href="#/admin">Modération</a>` : ""}<a href="#/profile">Mon profil</a><hr><button data-act="logout">Se déconnecter</button>`
+      ${u.role === "admin" ? `<a href="#/admin">Modération</a>` : ""}<a href="#/profile">Paramètres</a><hr><button data-act="logout">Se déconnecter</button>`
     : `<button data-act="login">Se connecter</button><button data-act="signup">S'inscrire</button><hr><button data-act="signup-host">Devenir hôte</button>`;
   document.body.append(p);
 }
@@ -566,9 +592,9 @@ async function detail(id) {
       <div class="block-sec"><h2>Où se situe le bien</h2><p>${esc(l.street)}${l.address ? ` — <b>${esc(l.address)}</b>` : ""}</p>
         ${l.exact_location ? "" : '<p class="hint">Emplacement approximatif. L\'adresse exacte (numéro) est communiquée dès que vous contactez l\'hôte.</p>'}
         ${l.lat != null ? '<div class="mini-map" id="dmap"></div>' : ""}</div>
-      <div class="block-sec"><h2>${l.reviews_count ? `${I.star} ${Number(l.rating).toFixed(1)} · ${l.reviews_count} avis vérifiés sur le bien` : "Avis sur le bien"}</h2>
-        ${l.reviews.map(r => `<div class="rev">${avatar(r.avatar, r.name)}<div><div class="who">${esc(r.name)} ${stars(r.rating)}</div><time>${when(r.created_at)}</time><div>${esc(r.comment)}</div></div></div>`).join("") || '<p class="hint">Aucun avis pour le moment.</p>'}
-        ${l.can_review ? `<form id="revForm"><div class="field"><label>Votre note</label><select name="rating">${[5, 4, 3, 2, 1].map(n => `<option value="${n}">${n} / 5 · ${RATING_WORD[n]}</option>`).join("")}</select></div><div class="field"><label>Votre avis</label><textarea name="comment" minlength="10" maxlength="800" required style="min-height:80px"></textarea></div><button class="btn sm">Publier l'avis</button></form>` : '<p class="hint">Seuls les clients ayant échangé avec l\'hôte via Ndaku peuvent laisser un avis.</p>'}</div>
+      <div class="block-sec"><h2>${l.reviews_count ? `${I.star} ${Number(l.rating).toFixed(1)} · ${l.reviews_count} avis vérifié${l.reviews_count > 1 ? "s" : ""} sur le bien` : "Avis sur le bien"}</h2>
+        ${l.reviews.map(r => `<div class="rev">${avatar(r.avatar, r.name)}<div><div class="who">${esc(r.name)} ${stars(r.rating)}</div><time>${when(r.created_at)}${r.edited ? " · modifié" : ""}</time><div>${esc(r.comment)}</div></div></div>`).join("") || '<p class="hint">Aucun avis pour le moment.</p>'}
+        ${l.can_review ? reviewForm(l.my_review, "sur ce bien") : '<p class="hint">Seuls les clients ayant échangé avec l\'hôte via Ndaku peuvent laisser un avis.</p>'}</div>
     </div>
     <aside><div class="panel"><div><div class="big">${esc("$" + fmt(l.price))}${l.deal === "location" ? " <small>/ mois</small>" : ""}</div>
         <p class="hint hide-m" style="margin:6px 0 0">${esc(l.commune)}, ${esc(l.city)}</p></div>
@@ -584,8 +610,7 @@ async function detail(id) {
   }
   drawSlots(l, isOwner).catch(() => {});
   if (l.status === "active") marketCompare(l).catch(() => {});
-  const rf = $("#revForm");
-  if (rf) rf.onsubmit = async e => { e.preventDefault(); if (needAvatar()) return; try { await api(`/api/listings/${id}/reviews`, { json: Object.fromEntries(new FormData(rf)) }); toast("Merci pour votre avis !"); detail(id); } catch (x) { toast(x.message); } };
+  bindReviewForm(`/api/listings/${id}/reviews`, () => detail(id));
 }
 function visitModal(lid) {
   if (needLogin() || needAvatar()) return;
@@ -644,8 +669,8 @@ async function messages(cid) {
     const meta = m.meta || {};
     const kind = m.kind === "visit" ? `<span class="k">${ic("cal", 13)} ${meta.slot_id ? "Visite réservée" : "Demande de visite"}${meta.date ? " · " + esc(new Date(meta.date + "T12:00").toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })) : ""}</span>`
       : m.kind === "contact" ? `<span class="k">${ic("idcard", 13)} Coordonnées partagées</span>` : "";
-    return `${m.warn ? '<div class="warn">${ic("alert", 15)} Ce message parle d\'argent. Ne payez jamais d\'acompte, de caution ou de « frais de visite » avant d\'avoir visité le bien et vérifié les documents.</div>' : ""}
-      <div class="bubble ${m.mine ? "mine" : ""} ${m.kind !== "text" ? m.kind : ""}">${kind}${esc(m.body)}<time>${hour(m.created_at)} · ${when(m.created_at)}</time></div>`;
+    return `${m.warn ? `<div class="warn">${ic("alert", 15)} Ce message parle d'argent. Ne payez jamais d'acompte, de caution ou de « frais de visite » avant d'avoir visité le bien et vérifié les documents.</div>` : ""}
+      <div class="bubble ${m.mine ? "mine" : ""} ${m.kind !== "text" ? m.kind : ""}" ${m.mine ? `data-ts="${m.created_at}"` : ""}>${kind}${esc(m.body)}<time>${hour(m.created_at)} · ${when(m.created_at)}${m.mine ? '<span class="rc"></span>' : ""}</time></div>`;
   };
   th.innerHTML = `<div class="thread-h"><a class="icon-btn" href="#/messages" aria-label="Retour">${ic("back", 22)}</a>${avatar(t.other.avatar, t.other.name)}
       <div class="t"><b>${esc(t.other.name)}${t.other.verified ? " " + verifiedTick : ""}</b><a href="#/listing/${t.listing_id}">${esc(t.title)}</a></div>
@@ -655,7 +680,20 @@ async function messages(cid) {
       : `<form class="composer" id="cmp"><textarea name="body" rows="1" maxlength="2000" placeholder="Écrire un message…" aria-label="Message" required></textarea><button class="btn send" aria-label="Envoyer">${ic("send", 18)}<span class="hide-sm">Envoyer</span></button></form>`}`;
   const box = $("#msgs");
   const append = list => { if (!list.length) return; box.insertAdjacentHTML("beforeend", list.map(bubble).join("")); lastId = list[list.length - 1].id; box.scrollTop = box.scrollHeight; };
-  append(t.messages);
+  // Accusés de lecture : une coche = envoyé, deux coches = lu par l'autre personne ; « Vu » sous le dernier message lu.
+  const receipts = seen => {
+    const mine = [...box.querySelectorAll(".bubble[data-ts]")];
+    mine.forEach(b => {
+      const read = seen != null && +b.dataset.ts <= seen + 1;
+      const rc = b.querySelector(".rc");
+      rc.className = "rc" + (read ? " read" : ""); rc.innerHTML = ic(read ? "check2" : "check", 15);
+      rc.title = read ? "Lu" : "Envoyé"; rc.setAttribute("aria-label", rc.title);
+    });
+    box.querySelector(".seen")?.remove();
+    const last = mine[mine.length - 1];
+    if (last && seen != null && +last.dataset.ts <= seen + 1) last.insertAdjacentHTML("afterend", `<div class="seen">Vu ${new Date(seen * 1000).toDateString() === new Date().toDateString() ? "à " + hour(seen) : "le " + when(seen)}</div>`);
+  };
+  append(t.messages); receipts(t.other_read_at);
   const me = state.user; if (me.unread) { me.unread = Math.max(0, me.unread - 1); renderTabbar(); }
   const cmp = $("#cmp");
   if (cmp) {
@@ -670,7 +708,7 @@ async function messages(cid) {
       try { await api(`/api/conversations/${cid}/messages`, { json: { body } }); await poll(); drawInbox(); } catch (x) { ta.value = body; toast(x.message); }
     };
   }
-  const poll = async () => { const r = await api(`/api/conversations/${cid}?after=${lastId}`); append(r.messages); };
+  const poll = async () => { const r = await api(`/api/conversations/${cid}?after=${lastId}`); append(r.messages); receipts(r.other_read_at); };
   const iv = setInterval(() => { if (!document.hidden) poll().catch(() => {}); }, 5000);
   cleanup.push(() => clearInterval(iv));
 }
@@ -712,23 +750,59 @@ async function favorites() {
 async function profile() {
   const u = state.user;
   if (!u) { $("#view").innerHTML = `<div class="wrap empty"><h3>Bienvenue sur Ndaku</h3><p>Connectez-vous pour gérer vos favoris, vos messages et vos annonces.</p><div class="row-actions" style="justify-content:center"><button class="btn" data-act="login">Se connecter</button><button class="btn ghost" data-act="signup">S'inscrire</button></div></div>`; return; }
-  $("#view").innerHTML = `<div class="wrap page" style="max-width:640px"><div class="profile-head">${avatar(u.avatar, u.name, "xl")}<div><h1 style="margin:0">${esc(u.name)}</h1>
-      <p class="hint">${u.role === "host" ? "Hôte" : u.role === "admin" ? "Administrateur" : "Client"}${u.verified ? ` · ${verifiedTick} identité vérifiée` : ""} · ${esc(u.email)}</p><button class="btn soft sm" data-act="avatar">Changer de photo</button></div></div>
-    <form id="pf" class="form"><div class="field"><label for="p-n">Nom</label><input id="p-n" name="name" value="${esc(u.name)}" maxlength="80" required></div>
-      <div class="field"><label for="p-t">Téléphone</label><input id="p-t" name="phone" type="tel" value="${esc(u.phone || "")}" maxlength="30" placeholder="+243 …"><span class="hint">Jamais affiché publiquement : vous le partagez vous-même dans une discussion.</span></div>
-      <div class="err" id="pfErr"></div><button class="btn">Enregistrer</button></form>
-    <div class="block-sec" id="notifPrefs"></div>
-    <div class="block-sec"><h2 style="font-size:18px">${ic("bell", 18)} Mes alertes de recherche</h2><p class="hint">Faites une recherche puis touchez « Créer une alerte » : nous vous prévenons dès qu'une maison correspondante est publiée.</p><div id="alerts">${SK.rows(2)}</div></div>
-    ${u.role === "host" ? `<div class="block-sec"><h2 style="font-size:18px">${ic("shield", 18)} Vérification d'identité</h2><p class="hint">${u.verified ? "Votre identité est vérifiée : le badge apparaît sur vos annonces." : "Pièce d'identité + selfie, examinés par l'équipe Ndaku puis effacés."}</p>${u.verified ? "" : '<a class="btn soft sm" href="#/verification">Faire vérifier mon identité</a>'}</div>` : ""}
-    <div class="block-sec"><a class="btn ghost sm" href="#/prix">${ic("trend", 16)} Prix du marché par commune</a></div>
-    <div class="block-sec"><h2 style="font-size:18px">Sécurité</h2><p class="hint">Connexion : ${u.providers.length ? u.providers.map(p => p === "apple" ? "Apple (iCloud)" : "Google").join(", ") : ""}${u.providers.length && u.has_password ? " + " : ""}${u.has_password ? "mot de passe" : ""}</p>
-      <div class="row-actions">${u.role === "host" ? '<a class="btn ghost sm" href="#/host">Mes annonces</a>' : ""}<button class="btn ghost sm" data-act="logout-all">Se déconnecter de tous les appareils</button><button class="btn ghost sm" data-act="logout">Se déconnecter</button></div></div></div>`;
+  const sec = (id, icon, title, body) => `<section class="set-sec" id="set-${id}"><h2>${ic(icon, 20)} ${title}</h2>${body}</section>`;
+  const providers = u.providers.map(p => p === "apple" ? "Apple (iCloud)" : "Google");
+  $("#view").innerHTML = `<div class="wrap page settings"><h1>${ic("gear", 24)} Paramètres</h1>
+    <nav class="set-nav" aria-label="Sections">${[["profil", "Profil"], ["securite", "Sécurité"], ["notifications", "Notifications"], ["alertes", "Alertes"], ...(u.role === "host" ? [["verification", "Vérification"]] : []), ["compte", "Compte"]].map(([k, l]) => `<a href="#/profile" data-sec="${k}">${l}</a>`).join("")}</nav>
+    ${sec("profil", "user", "Profil", `<div class="profile-head">${avatar(u.avatar, u.name, "xl")}<div><b style="font-size:18px">${esc(u.name)}</b>
+        <p class="hint">${u.role === "host" ? "Hôte" : u.role === "admin" ? "Administrateur" : "Client"}${u.verified ? ` · ${verifiedTick} identité vérifiée` : ""} · ${esc(u.email)}</p><button class="btn soft sm" data-act="avatar">${ic("camera", 15)} Changer de photo</button></div></div>
+      <form id="pf" class="form"><div class="field"><label for="p-n">Nom</label><input id="p-n" name="name" value="${esc(u.name)}" maxlength="80" required></div>
+        <div class="field"><label for="p-t">Téléphone</label><input id="p-t" name="phone" type="tel" value="${esc(u.phone || "")}" maxlength="30" placeholder="+243 …"><span class="hint">Jamais affiché publiquement : vous le partagez vous-même dans une discussion.</span></div>
+        <div class="err" id="pfErr"></div><button class="btn">Enregistrer</button></form>`)}
+    ${sec("securite", "lock", "Sécurité", `<p class="hint">Connexion avec : ${[...providers, ...(u.has_password ? ["e-mail + mot de passe"] : [])].join(", ") || "—"}</p>
+      <form id="pwf" class="form" autocomplete="on"><h3>${u.has_password ? "Changer de mot de passe" : "Créer un mot de passe"}</h3>
+        ${u.has_password ? `<div class="field"><label for="pw-c">Mot de passe actuel</label><input id="pw-c" name="current_password" type="password" autocomplete="current-password" required maxlength="128"></div>` : `<p class="hint">Vous vous connectez avec ${esc(providers.join(" / "))}. Un mot de passe vous permet aussi de vous connecter avec votre e-mail.</p>`}
+        <div class="field"><label for="pw-n">Nouveau mot de passe</label><input id="pw-n" name="new_password" type="password" autocomplete="new-password" required maxlength="128"><span class="hint">10 caractères min., majuscule, minuscule et chiffre.</span></div>
+        <div class="field"><label for="pw-r">Confirmer le nouveau mot de passe</label><input id="pw-r" name="confirm" type="password" autocomplete="new-password" required maxlength="128"></div>
+        <label class="chk" style="margin-bottom:12px"><input type="checkbox" id="pw-show"> Afficher les mots de passe</label>
+        <div class="err" id="pwErr" role="alert"></div><button class="btn">${u.has_password ? "Changer le mot de passe" : "Créer le mot de passe"}</button></form>
+      <div class="set-row"><div><b>Appareils connectés</b><br><span class="hint">Changer de mot de passe déconnecte déjà vos autres appareils.</span></div><button class="btn ghost sm" data-act="logout-all">${ic("logout", 15)} Déconnecter tous les appareils</button></div>`)}
+    <section class="set-sec" id="set-notifications"><div id="notifPrefs"></div></section>
+    ${sec("alertes", "bell", "Mes alertes de recherche", `<p class="hint">Faites une recherche puis touchez « Créer une alerte » : nous vous prévenons dès qu'une maison correspondante est publiée.</p><div id="alerts">${SK.rows(2)}</div>`)}
+    ${u.role === "host" ? sec("verification", "shield", "Vérification d'identité", `<p class="hint">${u.verified ? "Votre identité est vérifiée : le badge apparaît sur vos annonces." : "Pièce d'identité + selfie, examinés par l'équipe Ndaku puis effacés."}</p>${u.verified ? "" : '<a class="btn soft sm" href="#/verification">Faire vérifier mon identité</a>'}`) : ""}
+    ${sec("compte", "user", "Compte", `<div class="set-row"><div><b>Raccourcis</b></div><div class="row-actions">${u.role === "host" ? `<a class="btn ghost sm" href="#/host">Mes annonces</a>` : ""}<a class="btn ghost sm" href="#/favorites">Favoris</a><a class="btn ghost sm" href="#/prix">${ic("trend", 15)} Prix du marché</a></div></div>
+      <div class="set-row"><div><b>Se déconnecter</b><br><span class="hint">De cet appareil uniquement.</span></div><button class="btn ghost sm" data-act="logout">${ic("logout", 15)} Se déconnecter</button></div>
+      ${u.role === "admin" ? "" : `<div class="set-row danger-zone"><div><b>Supprimer mon compte</b><br><span class="hint">Définitif : profil, annonces, photos, discussions et avis sont effacés.</span></div><button class="btn danger sm" data-act="delete-account">${ic("trash", 15)} Supprimer</button></div>`}`)}
+  </div>`;
+  $("#view").querySelector(".set-nav").onclick = e => { const a = e.target.closest("[data-sec]"); if (!a) return; e.preventDefault(); $(`#set-${a.dataset.sec}`).scrollIntoView({ behavior: "smooth", block: "start" }); };
   $("#pf").onsubmit = async e => {
     e.preventDefault();
     try { state.user = (await api("/api/auth/me", { method: "PATCH", json: Object.fromEntries(new FormData(e.target)) })).user; renderHeader(); drawNotifPrefs(); toast("Profil enregistré"); }
     catch (x) { $("#pfErr").textContent = x.message; }
   };
+  $("#pw-show").onchange = e => $("#pwf").querySelectorAll("input[type=password],input[data-pw]").forEach(i => { i.dataset.pw = 1; i.type = e.target.checked ? "text" : "password"; });
+  $("#pwf").onsubmit = async e => {
+    e.preventDefault(); const d = Object.fromEntries(new FormData(e.target)), err = $("#pwErr");
+    if (d.new_password !== d.confirm) { err.textContent = "Les deux nouveaux mots de passe ne correspondent pas."; return; }
+    const b = e.target.querySelector(".btn"); b.disabled = true;
+    try {
+      await api("/api/auth/password/change", { json: { current_password: d.current_password || "", new_password: d.new_password } });
+      state.user = (await api("/api/auth/me")).user; toast("Mot de passe enregistré. Vos autres appareils ont été déconnectés."); profile();
+    } catch (x) { err.textContent = x.message; b.disabled = false; }
+  };
   drawNotifPrefs(); drawAlerts();
+}
+function deleteAccountModal() {
+  const u = state.user;
+  const m = modal("Supprimer mon compte", `<form id="dlf"><div class="notice warn">${ic("alert", 16)} Cette action est <b>définitive</b>. Votre profil, vos annonces, leurs photos, vos discussions, favoris, alertes et avis seront effacés.</div>
+    ${u.has_password ? `<div class="field"><label for="dl-p">Mot de passe</label><input id="dl-p" name="password" type="password" autocomplete="current-password" required></div>`
+      : `<div class="field"><label for="dl-c">Tapez <b>SUPPRIMER</b> pour confirmer</label><input id="dl-c" name="confirm" autocomplete="off" required></div>`}
+    <div class="err" id="dlErr" role="alert"></div><div class="row-actions"><button class="btn danger">Supprimer définitivement</button><button type="button" class="btn ghost" data-act="close">Annuler</button></div></form>`);
+  m.querySelector("#dlf").onsubmit = async e => {
+    e.preventDefault();
+    try { await api("/api/auth/me/delete", { json: Object.fromEntries(new FormData(e.target)) }); clearOffline(); state.user = null; state.favs = new Set(); closeModal(); renderHeader(); go("#/"); toast("Votre compte a été supprimé."); }
+    catch (x) { $("#dlErr").textContent = x.message; }
+  };
 }
 
 /* ============================================================================ espace hôte */
@@ -1129,7 +1203,7 @@ function drawNotifPrefs() {
   const ch = state.auth.notify_channels || {}, n = u.notify || {};
   const row = (k, i, label, avail, why) => `<label class="chk ${avail ? "" : "off"}"><input type="checkbox" name="${k}" ${n[k] ? "checked" : ""} ${avail ? "" : "disabled"}> ${ic(i, 16)} ${label}${why ? ` <span class="hint">${why}</span>` : ""}</label>`;
   const needPhone = !u.phone ? "(ajoutez votre numéro ci-dessus)" : !u.phone_verified ? "" : "";
-  box.innerHTML = `<h2 style="font-size:18px">${ic("bell", 18)} Être prévenu des nouveaux messages</h2>
+  box.innerHTML = `<h2>${ic("bell", 20)} Notifications</h2><p><b>Être prévenu des nouveaux messages, visites et alertes</b></p>
     <p class="hint">Les notifications n'incluent jamais le contenu de vos messages, seulement une invitation à ouvrir Ndaku.</p>
     <form id="npf" class="notif-prefs">${row("email", "send", `E-mail (${esc(u.email)})`, true)}
       ${row("sms", "chat", "SMS", ch.sms && u.phone_verified, !ch.sms ? "(bientôt disponible)" : needPhone)}
@@ -1172,12 +1246,10 @@ async function hostPage(id) {
       <p>${h.rating ? `${stars(Math.round(h.rating))} <b>${Number(h.rating).toFixed(1)}</b> · ${h.reviews_count} avis` : '<span class="hint">Pas encore d\'avis</span>'}</p></div></div>
     <h2 class="sec-title">Annonces de ${esc(h.name)}</h2>${h.listings.length ? `<div class="grid">${h.listings.map(l => cardHtml(l)).join("")}</div>` : '<p class="hint">Aucune annonce en ligne.</p>'}
     <div class="block-sec" style="max-width:720px"><h2>Avis sur l'hôte</h2>
-      ${h.reviews.map(r => `<div class="rev">${avatar(r.avatar, r.name)}<div><div class="who">${esc(r.name)} ${stars(r.rating)}</div><time>${when(r.created_at)}</time><div>${esc(r.comment)}</div></div></div>`).join("") || '<p class="hint">Aucun avis pour le moment.</p>'}
-      ${h.can_review ? `<form id="hrf"><h3>Votre avis sur cet hôte</h3><div class="field"><label>Note</label><select name="rating">${[5, 4, 3, 2, 1].map(n => `<option value="${n}">${n} / 5 · ${RATING_WORD[n]}</option>`).join("")}</select></div>
-        <div class="field"><label>Ponctualité, honnêteté, réactivité…</label><textarea name="comment" minlength="10" maxlength="800" required style="min-height:80px"></textarea></div><button class="btn sm">Publier l'avis</button></form>`
-        : '<p class="hint">Seuls les clients ayant échangé avec l\'hôte via Ndaku peuvent le noter, une seule fois.</p>'}</div></div>`;
-  const f = $("#hrf");
-  if (f) f.onsubmit = async e => { e.preventDefault(); if (needAvatar()) return; try { await api(`/api/hosts/${id}/reviews`, { json: { rating: +f.rating.value, comment: f.comment.value } }); toast("Merci pour votre avis !"); hostPage(id); } catch (x) { toast(x.message); } };
+      ${h.reviews.map(r => `<div class="rev">${avatar(r.avatar, r.name)}<div><div class="who">${esc(r.name)} ${stars(r.rating)}</div><time>${when(r.created_at)}${r.edited ? " · modifié" : ""}</time><div>${esc(r.comment)}</div></div></div>`).join("") || '<p class="hint">Aucun avis pour le moment.</p>'}
+      ${h.can_review ? reviewForm(h.my_review, "sur cet hôte (ponctualité, honnêteté, réactivité)")
+        : '<p class="hint">Seuls les clients ayant échangé avec l\'hôte via Ndaku peuvent le noter.</p>'}</div></div>`;
+  bindReviewForm(`/api/hosts/${id}/reviews`, () => hostPage(id));
 }
 
 /* ----------------------------------------------------------------- vérification d'identité */
@@ -1249,6 +1321,7 @@ document.addEventListener("click", async e => {
   if (a === "lightbox") return lightbox(t.dataset.i);
   if (a === "alert") return alertModal();
   if (a === "phone") return phoneModal();
+  if (a === "delete-account") return deleteAccountModal();
   if (a === "resend") return act("/api/auth/resend-verification", undefined, "E-mail de confirmation renvoyé.");
   if (a === "logout" || a === "logout-all") { await api(a === "logout" ? "/api/auth/logout" : "/api/auth/logout-all", { method: "POST" }).catch(() => {}); clearOffline(); state.user = null; state.favs = new Set(); renderHeader(); go("#/"); return toast("À bientôt !"); }
   const tab = t.closest("[data-tab]"); if (tab) return go(`#/admin?tab=${tab.dataset.tab}`);

@@ -199,6 +199,7 @@ def get_listing(lid):
                    "avatar": r["host_avatar"], "rating": r["host_rating"], "reviews_count": r["host_rating_count"]},
              images=[i["url"] for i in imgs], credits=[i["credit"] for i in imgs if i["credit"]],
              reviews=all_("""SELECT r.rating, r.comment, extract(epoch FROM r.created_at)::float8 AS created_at, u.name,
+                                    r.updated_at IS NOT NULL AS edited,
                                     u.avatar_url AS avatar
                              FROM reviews r JOIN users u ON u.id=r.user_id WHERE r.listing_id=%s
                              ORDER BY r.created_at DESC LIMIT 50""", (lid,)))
@@ -211,8 +212,8 @@ def get_listing(lid):
         d["conversation_id"] = conv["id"] if conv else None
         d["can_review"] = bool(conv and u["id"] != r["owner_id"]
                                and one("SELECT 1 FROM messages WHERE conversation_id=%s AND sender_id=%s LIMIT 1",
-                                       (conv["id"], u["id"]))
-                               and not one("SELECT 1 FROM reviews WHERE listing_id=%s AND user_id=%s", (lid, u["id"])))
+                                       (conv["id"], u["id"])))
+        d["my_review"] = one("SELECT rating, comment FROM reviews WHERE listing_id=%s AND user_id=%s", (lid, u["id"]))
     if r["status"] == "active" and not request.headers.get("X-Ndaku-Offline"):  # préchargement hors-ligne ≠ vue
         from .services import record_view
         record_view(lid, r["owner_id"])
@@ -545,16 +546,53 @@ def review(lid):
     if r["owner_id"] == u["id"] or not conv or not one(
             "SELECT 1 FROM messages WHERE conversation_id=%s AND sender_id=%s LIMIT 1", (conv["id"], u["id"])):
         abort(403, "Seuls les clients ayant échangé avec l'hôte peuvent laisser un avis vérifié.")
+    rating, comment = parse_review(d)
+    created = upsert_review("reviews", "listing_id", lid, u["id"], rating, comment)
+    return jsonify(ok=True, created=created), 201 if created else 200
+
+
+@bp.delete("/listings/<int:lid>/reviews/mine")
+@require()
+def delete_review(lid):
+    delete_own_review("reviews", "listing_id", lid, current_user()["id"])
+    return jsonify(ok=True)
+
+
+def parse_review(d):
     rating, comment = d.get("rating"), text(d, "comment", 800)
     if isinstance(rating, str) and rating.isdigit():
         rating = int(rating)
     if not isinstance(rating, int) or isinstance(rating, bool) or not 1 <= rating <= 5 or len(comment) < 10:
-        abort(400, "Note de 1 à 5 et commentaire de 10 caractères minimum.")
-    if not one("""INSERT INTO reviews (listing_id, user_id, rating, comment) VALUES (%s,%s,%s,%s)
-                  ON CONFLICT (listing_id, user_id) DO NOTHING RETURNING id""", (lid, u["id"], rating, comment)):
-        abort(409, "Vous avez déjà noté cette annonce.")
-    run("UPDATE listings SET rating_sum = rating_sum + %s, rating_count = rating_count + 1 WHERE id=%s", (rating, lid))
-    return jsonify(ok=True), 201
+        abort(400, "Choisissez de 1 à 5 étoiles et écrivez un commentaire de 10 caractères minimum.")
+    return rating, comment
+
+
+# Compteurs dénormalisés (somme/nombre de notes) tenus à jour à chaque création, modification ou suppression.
+RATING_TARGET = {"reviews": ("listings", "rating_sum", "rating_count"),
+                 "host_reviews": ("users", "host_rating_sum", "host_rating_count")}
+
+
+def upsert_review(table, key, target_id, uid, rating, comment):
+    """Crée l'avis ou modifie celui de l'utilisateur ; renvoie True si créé."""
+    tgt, s_col, n_col = RATING_TARGET[table]
+    old = one(f"SELECT id, rating FROM {table} WHERE {key}=%s AND user_id=%s FOR UPDATE", (target_id, uid))
+    if old:
+        run(f"UPDATE {table} SET rating=%s, comment=%s, updated_at=now() WHERE id=%s", (rating, comment, old["id"]))
+        run(f"UPDATE {tgt} SET {s_col} = {s_col} + %s WHERE id=%s", (rating - old["rating"], target_id))
+        return False
+    if not one(f"""INSERT INTO {table} ({key}, user_id, rating, comment) VALUES (%s,%s,%s,%s)
+                   ON CONFLICT ({key}, user_id) DO NOTHING RETURNING id""", (target_id, uid, rating, comment)):
+        abort(409, "Avis déjà enregistré, rechargez la page pour le modifier.")
+    run(f"UPDATE {tgt} SET {s_col} = {s_col} + %s, {n_col} = {n_col} + 1 WHERE id=%s", (rating, target_id))
+    return True
+
+
+def delete_own_review(table, key, target_id, uid):
+    tgt, s_col, n_col = RATING_TARGET[table]
+    old = one(f"DELETE FROM {table} WHERE {key}=%s AND user_id=%s RETURNING rating", (target_id, uid))
+    if not old:
+        abort(404, "Avis introuvable.")
+    run(f"UPDATE {tgt} SET {s_col} = {s_col} - %s, {n_col} = {n_col} - 1 WHERE id=%s", (old["rating"], target_id))
 
 
 @bp.post("/listings/<int:lid>/report")
