@@ -193,6 +193,7 @@ def get_listing(lid):
              address=(f"{r['avenue']} n° {r['house_number']}" + (f", {r['unit']}" if r["unit"] else "")
                       if exact and r["house_number"] else None),
              street=street, exact_location=exact, access_type=r["access_type"], rain_access=r["rain_access"],
+             commune_id=r["commune_id"], city_id=r["city_id"],
              views=r["views"] if is_staff else None,
              host={"id": r["owner_id"], "name": r["host_name"], "verified": r["host_verified"],
                    "avatar": r["host_avatar"], "rating": r["host_rating"], "reviews_count": r["host_rating_count"]},
@@ -212,7 +213,7 @@ def get_listing(lid):
                                and one("SELECT 1 FROM messages WHERE conversation_id=%s AND sender_id=%s LIMIT 1",
                                        (conv["id"], u["id"]))
                                and not one("SELECT 1 FROM reviews WHERE listing_id=%s AND user_id=%s", (lid, u["id"])))
-    if r["status"] == "active":
+    if r["status"] == "active" and not request.headers.get("X-Ndaku-Offline"):  # préchargement hors-ligne ≠ vue
         from .services import record_view
         record_view(lid, r["owner_id"])
     return jsonify(d)

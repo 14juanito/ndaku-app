@@ -1,0 +1,10 @@
+{
+  "name": "Ndaku – Maisons en RDC",
+  "short_name": "Ndaku",
+  "lang": "fr",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#F26122",
+  "icons": [{ "src": "/logo.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

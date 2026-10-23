@@ -346,6 +346,7 @@ CREATE TABLE IF NOT EXISTS notifications (
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS ix_notif_user ON notifications (user_id, created_at DESC);
+ALTER TABLE notifications ADD COLUMN IF NOT EXISTS ext_pending BOOLEAN NOT NULL DEFAULT FALSE;
 CREATE INDEX IF NOT EXISTS ix_notif_pending ON notifications (created_at) WHERE ext_pending;
 
 -- Agenda de visites : l'hôte ouvre des créneaux, un client en réserve un

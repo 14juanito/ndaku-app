@@ -25,6 +25,60 @@ const I = {
   list: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>',
   flag: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 22V4M4 4h12l-2 4 2 4H4"/></svg>',
 };
+const P = {
+  pin: '<path d="M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/>',
+  idcard: '<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="11" r="2"/><path d="M6 16c.6-1.5 1.7-2 3-2s2.4.5 3 2M14 10h4M14 13h3"/>',
+  shield: '<path d="M12 3 5 6v5c0 4.5 3 8.3 7 10 4-1.7 7-5.5 7-10V6z"/><path d="m9 12 2 2 4-4"/>',
+  alert: '<path d="M12 3 2 20h20z"/><path d="M12 10v4M12 17h.01"/>',
+  user: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
+  camera: '<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>',
+  ban: '<circle cx="12" cy="12" r="9"/><path d="m5.6 5.6 12.8 12.8"/>',
+  checkc: '<circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/>',
+  check: '<path d="m4 12 5 5L20 6"/>',
+  dots: '<path d="M5 12h.01M12 12h.01M19 12h.01" stroke-width="3.2"/>',
+  back: '<path d="M19 12H5M11 6l-6 6 6 6"/>',
+  x: '<path d="M6 6l12 12M18 6 6 18"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  trash: '<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>',
+  heart: '<path d="M12 21C5 16 2 12 2 8.5a5 5 0 0 1 10-1.5 5 5 0 0 1 10 1.5C22 12 19 16 12 21z"/>',
+  bolt: '<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>',
+  drop: '<path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z"/>',
+  road: '<path d="M8 3 4 21M16 3l4 18M12 4v3M12 11v3M12 18v2"/>',
+  rain: '<path d="M7 15a4 4 0 0 1-.5-8A6 6 0 0 1 18 8a3.5 3.5 0 0 1-.5 7z"/><path d="M8 18l-1 2M12 18l-1 2M16 18l-1 2"/>',
+  bell: '<path d="M6 16v-5a6 6 0 0 1 12 0v5l2 2H4z"/><path d="M10 21h4"/>',
+  cal: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',
+  clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  chart: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
+  trend: '<path d="M3 17l6-6 4 4 8-8M15 7h6v6"/>',
+  eye: '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
+  chat: '<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1.1-4.6A8 8 0 1 1 21 12z"/>',
+  send: '<path d="M22 2 11 13M22 2l-7 20-4-9-9-4z"/>',
+  home: '<path d="M3 12 12 4l9 8M5 10.5V20h14v-9.5"/>',
+  star: '<path d="m12 2 3 7 7.5.6-5.7 5 1.8 7.4L12 18l-6.6 4 1.8-7.4-5.7-5L9 9z"/>',
+  bed: '<path d="M3 18V7M3 14h18v4M21 14v-2a3 3 0 0 0-3-3h-7v5"/><circle cx="7" cy="11" r="2"/>',
+  bath: '<path d="M4 12h16v3a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4zM6 12V6a2 2 0 0 1 4 0M7 19l-1 2M17 19l1 2"/>',
+  area: '<rect x="3" y="3" width="18" height="18" rx="1"/><path d="M3 9h4M3 15h4M9 3v4M15 3v4"/>',
+  sofa: '<path d="M5 11V8a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v3"/><path d="M3 13a2 2 0 0 1 4 0v2h10v-2a2 2 0 0 1 4 0v5H3zM5 18v2M19 18v2"/>',
+  generator: '<rect x="3" y="7" width="18" height="12" rx="2"/><path d="M7 7V5h4v2M13 10l-2 3h3l-2 3"/>',
+  parking: '<rect x="4" y="3" width="16" height="18" rx="3"/><path d="M10 17V7h3a3 3 0 0 1 0 6h-3"/>',
+  fence: '<path d="M5 21V6l2-2 2 2v15M15 21V6l2-2 2 2v15M3 10h18M3 16h18"/>',
+  guard: '<path d="M12 3 5 6v5c0 4.5 3 8.3 7 10 4-1.7 7-5.5 7-10V6z"/><circle cx="12" cy="10" r="2"/><path d="M8.5 16c.7-1.6 2-2.3 3.5-2.3s2.8.7 3.5 2.3"/>',
+  snow: '<path d="M12 2v20M4 7l16 10M20 7 4 17M9 4l3 2 3-2M9 20l3-2 3 2"/>',
+  wifi: '<path d="M2 9a15 15 0 0 1 20 0M5 12.5a10 10 0 0 1 14 0M8.5 16a5 5 0 0 1 7 0"/><path d="M12 19.5h.01" stroke-width="3"/>',
+  wifioff: '<path d="M2 2l20 20M8.5 16a5 5 0 0 1 7 0M5 12.5a10 10 0 0 1 5.2-2.7M14 9.8a10 10 0 0 1 5 2.7M2 9a15 15 0 0 1 4.3-2.8M10.7 5A15 15 0 0 1 22 9"/>',
+  tree: '<path d="M12 22v-6M12 2a6 6 0 0 0-5 9.3A4.5 4.5 0 0 0 9 18h6a4.5 4.5 0 0 0 2-6.7A6 6 0 0 0 12 2z"/>',
+  tank: '<ellipse cx="12" cy="5" rx="7" ry="2.5"/><path d="M5 5v13c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5V5M5 11.5c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5"/>',
+  pot: '<path d="M4 10h16v6a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4zM2 10h2M20 10h2M9 6c0-1 1-1 1-2M14 6c0-1 1-1 1-2"/>',
+  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+};
+const ic = (n, s = 18, cls = "") => `<svg class="ic ${cls}" width="${s}" height="${s}" viewBox="0 0 24 24" aria-hidden="true">${P[n] || P.checkc}</svg>`;
+const AMENITY_ICON = { "Eau courante": "drop", "Électricité": "bolt", "Groupe électrogène": "generator", "Parking": "parking", "Clôture": "fence",
+  "Gardien": "guard", "Climatisation": "snow", "Internet": "wifi", "Jardin": "tree", "Citerne": "tank", "Cuisine équipée": "pot", "Panneaux solaires": "sun" };
+const SCORE_WORD = n => n >= 10 ? "Excellent" : n >= 8 ? "Très bon" : n >= 6 ? "Bon" : n >= 4 ? "Moyen" : "Faible";
+const RATING_WORD = { 5: "Excellent", 4: "Très bien", 3: "Correct", 2: "Décevant", 1: "Mauvais" };
+const stars = n => `<span class="stars" aria-label="${n} sur 5">${[1, 2, 3, 4, 5].map(i => `<svg class="ic ${i <= n ? "full" : ""}" width="14" height="14" viewBox="0 0 24 24" aria-hidden="true">${P.star}</svg>`).join("")}</span>`;
+const favLabel = on => `${ic("heart", 16)} ${on ? "Enregistré" : "Enregistrer"}`;
+const verifiedTick = `<span class="vtick" title="Identité vérifiée">${ic("checkc", 15)}</span>`;
 const CATS = [
   ["", "Tout", '<path d="M4 11 12 4l8 7M6 10v10h12V10"/>'],
   ["maison", "Maisons", '<path d="M3 12 12 4l9 8M5 10.5V20h5v-5h4v5h5v-9.5"/>'],
@@ -40,7 +94,7 @@ const TABS = [
   ["#/profile", "Profil", '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>'],
 ];
 const PLACE_LEVELS = [["province_id", "Province"], ["city_id", "Ville"], ["commune_id", "Commune"], ["quartier_id", "Quartier"], ["avenue_id", "Avenue"]];
-const FILTER_KEYS = ["province_id", "city_id", "commune_id", "quartier_id", "avenue_id", "deal", "ptype", "max_price", "min_price", "bedrooms", "furnished", "sort", "q", "bbox"];
+const FILTER_KEYS = ["province_id", "city_id", "commune_id", "quartier_id", "avenue_id", "deal", "ptype", "max_price", "min_price", "bedrooms", "furnished", "min_elec", "min_water", "min_access", "sort", "q", "bbox"];
 const DRC = { center: [-2.9, 23.6], zoom: 5 };
 
 const state = { user: null, meta: null, auth: {}, f: {}, favs: new Set(), placeName: "" };
@@ -70,7 +124,7 @@ function modal(title, html, cls = "") {
   closeModal();
   const ov = document.createElement("div");
   ov.className = "ov";
-  ov.innerHTML = `<div class="mdl ${cls}" role="dialog" aria-modal="true" aria-label="${esc(title)}"><header><button class="x" data-act="close" aria-label="Fermer">✕</button>${esc(title)}</header><div class="bd">${html}</div></div>`;
+  ov.innerHTML = `<div class="mdl ${cls}" role="dialog" aria-modal="true" aria-label="${esc(title)}"><header><button class="x" data-act="close" aria-label="Fermer">${ic("x", 18)}</button>${esc(title)}</header><div class="bd">${html}</div></div>`;
   ov.addEventListener("mousedown", e => { if (e.target === ov) closeModal(); });
   $("#modal-root").append(ov);
   const first = ov.querySelector("input:not([type=hidden]):not([type=file]):not(.sr),select,textarea"); first && first.focus();
@@ -175,8 +229,9 @@ function renderHeader() {
     </div>
     <div class="nav">
       ${!u || u.role === "host" ? `<a class="link host-cta" href="${u ? "#/new" : "#/host"}" data-need="host">Mettre ma maison sur Ndaku</a>` : ""}
+      ${u ? `<a class="icon-btn bell-btn" href="#/notifications" aria-label="Notifications${u.notif_unread ? ` (${u.notif_unread} non lues)` : ""}">${ic("bell", 22)}${u.notif_unread ? `<span class="dot">${u.notif_unread > 9 ? "9+" : u.notif_unread}</span>` : ""}</a>` : ""}
       ${u ? `<a class="icon-btn msg-btn" href="#/messages" aria-label="Messages">${I.chat}${u.unread ? `<span class="dot">${u.unread}</span>` : ""}</a>` : ""}
-      <button class="menu-btn" id="menuBtn" aria-haspopup="true" aria-label="Menu du compte">${I.burger}${u ? avatar(u.avatar, u.name) : '<span class="avatar">👤</span>'}</button>
+      <button class="menu-btn" id="menuBtn" aria-haspopup="true" aria-label="Menu du compte">${I.burger}${u ? avatar(u.avatar, u.name) : `<span class="avatar">${ic("user", 18)}</span>`}</button>
     </div>`;
   $("#menuBtn").onclick = e => { e.stopPropagation(); togglePop(); };
   renderTabbar();
@@ -193,9 +248,10 @@ function togglePop() {
   if ($(".pop")) return closePop();
   const u = state.user, p = document.createElement("div");
   p.className = "pop";
-  p.innerHTML = u ? `<div class="who">${esc(u.name)} · ${u.role === "host" ? "Hôte" : u.role === "admin" ? "Admin" : "Client"}${u.verified ? " · ✓ vérifié" : ""}</div>
-      <a href="#/messages">Messages${u.unread ? ` (${u.unread})` : ""}</a><a href="#/favorites">Favoris</a>
-      ${u.role === "host" ? `<a href="#/host">Mes annonces</a><a href="#/new">Publier une annonce</a>` : ""}
+  p.innerHTML = u ? `<div class="who">${esc(u.name)} · ${u.role === "host" ? "Hôte" : u.role === "admin" ? "Admin" : "Client"}${u.verified ? ` · ${verifiedTick} vérifié` : ""}</div>
+      <a href="#/messages">Messages${u.unread ? ` (${u.unread})` : ""}</a><a href="#/notifications">Notifications${u.notif_unread ? ` (${u.notif_unread})` : ""}</a><a href="#/favorites">Favoris</a>
+      ${u.role === "host" ? `<a href="#/host">Mes annonces et statistiques</a><a href="#/new">Publier une annonce</a>${u.verified ? "" : '<a href="#/verification">Vérifier mon identité</a>'}` : ""}
+      <a href="#/prix">Prix du marché</a>
       ${u.role === "admin" ? `<a href="#/admin">Modération</a>` : ""}<a href="#/profile">Mon profil</a><hr><button data-act="logout">Se déconnecter</button>`
     : `<button data-act="login">Se connecter</button><button data-act="signup">S'inscrire</button><hr><button data-act="signup-host">Devenir hôte</button>`;
   document.body.append(p);
@@ -243,7 +299,7 @@ async function mountSocial(box, getRole) {
     };
   } else aBtn.remove();
 }
-const avatarField = (id = "a-photo") => `<div class="av-pick"><label for="${id}" class="avatar" id="${id}-pv" title="Choisir une photo">📷</label>
+const avatarField = (id = "a-photo") => `<div class="av-pick"><label for="${id}" class="avatar" id="${id}-pv" title="Choisir une photo">${ic("camera", 26)}</label>
     <div><b>Photo de profil *</b><br><span class="hint">Un vrai visage rassure : obligatoire pour publier, écrire ou noter.</span><br>
     <input id="${id}" type="file" accept="image/jpeg,image/png,image/webp" class="sr"><label for="${id}" class="linkish">Choisir une photo</label></div></div>`;
 function bindAvatarField(root, id = "a-photo") {
@@ -297,7 +353,7 @@ function avatarModal(required) {
   m.querySelector("#avf").onsubmit = async e => {
     e.preventDefault(); if (!getPhoto()) { $("#avErr").textContent = "Choisissez une photo."; return; }
     const b = e.target.querySelector(".btn"); b.disabled = true;
-    try { await uploadAvatar(getPhoto()); closeModal(); renderHeader(); route(); toast("Photo de profil enregistrée ✓"); }
+    try { await uploadAvatar(getPhoto()); closeModal(); renderHeader(); route(); toast("Photo de profil enregistrée"); }
     catch (x) { $("#avErr").textContent = x.message; b.disabled = false; }
   };
 }
@@ -310,7 +366,7 @@ function forgotModal() {
 }
 async function verifyPage(params) {
   try { await api("/api/auth/verify-email", { json: { token: params.token } }); state.user = (await api("/api/auth/me")).user; renderHeader();
-    $("#view").innerHTML = `<div class="wrap empty"><h3>Adresse e-mail confirmée ✓</h3><a class="btn" href="#/">Continuer</a></div>`; }
+    $("#view").innerHTML = `<div class="wrap empty"><h3>${ic("checkc", 22)} Adresse e-mail confirmée</h3><a class="btn" href="#/">Continuer</a></div>`; }
   catch (x) { $("#view").innerHTML = errPage(x.message); }
 }
 function resetPage(params) {
@@ -327,6 +383,7 @@ function parse() { const [path, q] = (location.hash.slice(1) || "/").split("?");
 let cleanup = [];
 async function route() {
   closePop(); cleanup.forEach(fn => { try { fn(); } catch { /* ignore */ } }); cleanup = [];
+  document.body.classList.remove("in-thread");
   const { path, params } = parse(), view = $("#view");
   if (!path.startsWith("/messages")) window.scrollTo(0, 0);
   $("#cats").style.display = path === "/" ? "" : "none";
@@ -346,6 +403,10 @@ async function route() {
     if (path === "/favorites") return await favorites();
     if (path === "/profile") return await profile();
     if (path === "/admin") return await admin(params.tab || "queue");
+    if ((m = path.match(/^\/hote\/(\d+)$/))) return await hostPage(+m[1]);
+    if (path === "/notifications") return await notificationsPage();
+    if (path === "/verification") return await kycPage();
+    if (path === "/prix") return await pricesPage(params);
     if (path === "/verify") return await verifyPage(params);
     if (path === "/reset") return resetPage(params);
     view.innerHTML = errPage("Page introuvable");
@@ -359,7 +420,7 @@ async function loadFavs() { state.favs = new Set(state.user ? (await api("/api/f
 /* ===================================================================== accueil : liste + carte */
 function renderCats() {
   $("#cats").innerHTML = CATS.map(([v, l, svg]) => `<button class="cat ${(state.f.ptype || "") === v ? "on" : ""}" data-cat="${v}"><svg viewBox="0 0 24 24">${svg}</svg>${l}</button>`).join("")
-    + `<button class="chip-btn first" data-act="where">📍 ${esc(state.placeName || "Lieu")}</button><button class="chip-btn" data-act="filters">${I.filter} Filtres</button>`;
+    + `<button class="chip-btn first" data-act="where">${ic("pin", 16)} ${esc(state.placeName || "Lieu")}</button><button class="chip-btn" data-act="filters">${I.filter} Filtres</button>`;
 }
 function cardHtml(l, top) {
   const loc = [l.quartier, l.commune, l.city].filter(Boolean).slice(0, 2).join(", ");
@@ -371,6 +432,7 @@ function cardHtml(l, top) {
     <div class="row"><b>${esc(loc)}</b><span class="rt">${l.rating ? I.star + Number(l.rating).toFixed(1) : "Nouveau"}</span></div>
     <div class="m">${esc(l.title)}</div>
     <div class="m">${l.ptype === "terrain" ? "Terrain" : cap(l.ptype) + " · " + l.bedrooms + " ch."} · ${l.surface} m²</div>
+    ${l.elec_score ? `<div class="m q"><span title="Électricité : ${l.elec_score}/10">${ic("bolt", 14)} ${l.elec_score}/10</span><span title="Eau : ${l.water_score}/10">${ic("drop", 14)} ${l.water_score}/10</span></div>` : ""}
     <div class="price"><b>${money(l)}</b></div></a>`;
 }
 const pinHtml = p => `<div class="price-pin" data-pin="${p.id}">${esc(short(p))}</div>`;
@@ -385,7 +447,8 @@ async function home() {
   const f = state.f, view = $("#view");
   const filtered = FILTER_KEYS.some(k => f[k] && k !== "sort");
   view.innerHTML = `<div class="split" id="split">
-      <section class="list"><h2 class="sec-title" id="ht">${filtered ? "Recherche" : "Les meilleures maisons du moment"}</h2>
+      <section class="list"><div class="sec-head"><h2 class="sec-title" id="ht">${filtered ? "Recherche" : "Les meilleures maisons du moment"}</h2>
+        ${filtered ? `<button class="btn soft sm" data-act="alert">${ic("bell", 16)} Créer une alerte</button>` : ""}</div>
         <p class="sec-sub" id="hs">${filtered ? "&nbsp;" : "Classées par avis vérifiés, favoris et fiabilité de l'hôte."}</p>
         <div id="grid">${SK.cards(8)}</div><div class="more" id="more"></div></section>
       <aside class="mapcol" aria-label="Carte des annonces"><div id="map"></div><button class="map-search" id="mapSearch">Rechercher dans cette zone</button></aside>
@@ -462,9 +525,11 @@ function filtersModal() {
     <div class="field"><label>Prix max ($)</label><input name="max_price" type="number" min="0" inputmode="numeric" value="${esc(f.max_price || "")}"></div></div>
     <div class="field"><label>Chambres (minimum)</label><select name="bedrooms"><option value="">Indifférent</option>${[1, 2, 3, 4, 5].map(n => `<option ${+f.bedrooms === n ? "selected" : ""}>${n}</option>`).join("")}</select></div>
     <div class="field"><label>Mot-clé</label><input name="q" value="${esc(f.q || "")}" maxlength="60" placeholder="piscine, jardin, nom d'avenue…"></div>
+    <span class="lbl">Qualité minimale (notée par l'hôte)</span>
+    <div class="cols3">${[["min_elec", "bolt", "Courant"], ["min_water", "drop", "Eau"], ["min_access", "road", "Accès"]].map(([k, i, lb]) => `<div class="field"><label>${ic(i, 15)} ${lb}</label><select name="${k}"><option value="">Indifférent</option>${[5, 7, 9].map(n => `<option value="${n}" ${+f[k] === n ? "selected" : ""}>${n}/10 et +</option>`).join("")}</select></div>`).join("")}</div>
     <label class="chk" style="margin-bottom:20px"><input type="checkbox" name="furnished" value="1" ${f.furnished ? "checked" : ""}> Meublé uniquement</label>
     <div class="row-actions"><button type="button" class="btn ghost" data-act="reset">Tout effacer</button><button class="btn">Afficher les biens</button></div></form>`);
-  m.querySelector("#ff").onsubmit = e => { e.preventDefault(); const d = Object.fromEntries(new FormData(e.target)); closeModal(); go("#/" + qs({ ...state.f, deal: "", sort: "", min_price: "", max_price: "", bedrooms: "", q: "", furnished: "", ...d })); };
+  m.querySelector("#ff").onsubmit = e => { e.preventDefault(); const d = Object.fromEntries(new FormData(e.target)); closeModal(); go("#/" + qs({ ...state.f, deal: "", sort: "", min_price: "", max_price: "", bedrooms: "", q: "", furnished: "", min_elec: "", min_water: "", min_access: "", ...d })); };
 }
 
 /* =========================================================================== fiche annonce */
@@ -480,36 +545,45 @@ async function detail(id) {
     ${l.risk_reasons?.length ? `<div class="risk"><b>Signaux anti-fraude (score ${l.risk_score})</b><ul>${l.risk_reasons.map(r => `<li>${esc(r)}</li>`).join("")}</ul></div>` : ""}
     <h1>${esc(l.title)}</h1>
     <div class="meta"><span class="rt">${l.rating ? I.star + " <b style='color:var(--ink)'>" + Number(l.rating).toFixed(1) + "</b> · " + l.reviews_count + " avis" : "Pas encore d'avis"}</span>
-      <span>· ${esc(l.street)}</span>
-      <span style="margin-left:auto" class="row-actions"><button class="btn ghost sm" data-fav="${l.id}" aria-pressed="${fav}">${fav ? "♥ Enregistré" : "♡ Enregistrer"}</button>
+      <span>${ic("pin", 15)} ${esc(l.street)}</span>
+      <span style="margin-left:auto" class="row-actions"><button class="btn ghost sm" data-fav="${l.id}" aria-pressed="${fav}">${favLabel(fav)}</button>
       ${u && !isOwner ? `<button class="btn ghost sm" data-report="${l.id}">${I.flag} Signaler</button>` : ""}</span></div>
     <div class="gal n${n}" data-act="lightbox">${imgs.slice(0, 5).map((s, i) => `<img src="${esc(s)}" alt="Photo ${i + 1} : ${esc(l.title)}" data-i="${i}" ${i ? 'loading="lazy"' : ""}>`).join("")}</div>
     <div class="dt-body"><div>
       ${l.is_demo ? '<div class="notice warn" style="margin-top:16px">Annonce de <b>démonstration</b> : le bien n\'est pas réellement disponible.</div>' : ""}
-      <div class="block-sec"><div class="hostrow">${avatar(l.host.avatar, l.host.name, "lg")}<div><h2 style="margin:0;font-size:18px">${cap(l.ptype)} ${l.deal === "location" ? "à louer" : "à vendre"} · hôte : ${esc(l.host.name)}</h2>
-        ${l.host.verified ? `<span class="verif">${I.check} Hôte vérifié par Ndaku</span>` : '<span class="unverif">Hôte non encore vérifié : ne payez rien avant la visite.</span>'}</div></div>
-        <div class="specs" style="margin-top:14px"><span>${l.bedrooms} chambre${l.bedrooms > 1 ? "s" : ""}</span><span>· ${l.bathrooms} salle${l.bathrooms > 1 ? "s" : ""} de bain</span><span>· ${l.surface} m²</span>${l.furnished ? "<span>· Meublé</span>" : ""}</div></div>
+      <div class="block-sec"><a class="hostrow" href="#/hote/${l.host.id}">${avatar(l.host.avatar, l.host.name, "lg")}<div><h2 style="margin:0;font-size:18px">${cap(l.ptype)} ${l.deal === "location" ? "à louer" : "à vendre"} · hôte : ${esc(l.host.name)}</h2>
+        ${l.host.verified ? `<span class="verif">${ic("shield", 15)} Identité de l'hôte vérifiée par Ndaku</span>` : '<span class="unverif">Hôte non encore vérifié : ne payez rien avant la visite.</span>'}
+        ${l.host.rating ? `<br><span class="hint">${stars(Math.round(l.host.rating))} ${Number(l.host.rating).toFixed(1)} · ${l.host.reviews_count} avis sur l'hôte</span>` : ""}</div></a>
+        <div class="specs" style="margin-top:14px">${l.ptype === "terrain" ? "" : `<span>${ic("bed", 18)} ${l.bedrooms} chambre${l.bedrooms > 1 ? "s" : ""}</span><span>${ic("bath", 18)} ${l.bathrooms} salle${l.bathrooms > 1 ? "s" : ""} de bain</span>`}<span>${ic("area", 18)} ${l.surface} m²</span>${l.furnished ? `<span>${ic("sofa", 18)} Meublé</span>` : ""}${l.views != null ? `<span>${ic("eye", 18)} ${l.views} vue${l.views > 1 ? "s" : ""}</span>` : ""}</div></div>
+      ${l.elec_score ? `<div class="block-sec"><h2>Courant, eau et accès</h2><div class="scores">${scoreRow("bolt", "Électricité (régularité du courant)", l.elec_score)}${scoreRow("drop", "Eau (régularité et qualité)", l.water_score)}${scoreRow("road", "Accessibilité de la maison", l.access_score)}</div>
+        <div class="specs" style="margin-top:12px">${l.access_type ? `<span>${ic("road", 18)} ${esc(state.meta.access_types?.[l.access_type] || l.access_type)}</span>` : ""}${l.rain_access != null ? `<span>${ic("rain", 18)} ${l.rain_access ? "Accessible en saison des pluies" : "Difficile d'accès en saison des pluies"}</span>` : ""}</div>
+        <p class="hint">Notes de 1 (très mauvais) à 10 (parfait), déclarées par l'hôte. Vérifiez-les pendant la visite.</p></div>` : ""}
       <div class="block-sec"><h2>À propos de ce bien</h2><div class="desc">${esc(l.description)}</div>
         ${l.credits?.length ? `<p class="hint">Photos : ${l.credits.map(c => `${/^https:\/\/commons\.wikimedia\.org\//.test(c.page || "") ? `<a href="${esc(c.page)}" target="_blank" rel="noopener noreferrer">${esc(c.author)}</a>` : esc(c.author)} (${esc(c.license)})`).join(" · ")}, via Wikimedia Commons</p>` : ""}</div>
-      ${l.amenities.length ? `<div class="block-sec"><h2>Équipements</h2><div class="am-grid">${l.amenities.map(a => `<div>${I.check} ${esc(a)}</div>`).join("")}</div></div>` : ""}
+      ${l.amenities.length ? `<div class="block-sec"><h2>Équipements</h2><div class="am-grid">${l.amenities.map(a => `<div>${ic(AMENITY_ICON[a], 22)} ${esc(a)}</div>`).join("")}</div></div>` : ""}
+      <div class="block-sec" id="slots"></div>
+      <div class="block-sec" id="mkt" hidden></div>
       <div class="block-sec"><h2>Où se situe le bien</h2><p>${esc(l.street)}${l.address ? ` — <b>${esc(l.address)}</b>` : ""}</p>
         ${l.exact_location ? "" : '<p class="hint">Emplacement approximatif. L\'adresse exacte (numéro) est communiquée dès que vous contactez l\'hôte.</p>'}
         ${l.lat != null ? '<div class="mini-map" id="dmap"></div>' : ""}</div>
-      <div class="block-sec"><h2>${l.reviews_count ? `${I.star} ${Number(l.rating).toFixed(1)} · ${l.reviews_count} avis vérifiés` : "Avis"}</h2>
-        ${l.reviews.map(r => `<div class="rev">${avatar(r.avatar, r.name)}<div><div class="who">${esc(r.name)} <span class="stars">${"★".repeat(r.rating)}${"☆".repeat(5 - r.rating)}</span></div><time>${when(r.created_at)}</time><div>${esc(r.comment)}</div></div></div>`).join("") || '<p class="hint">Aucun avis pour le moment.</p>'}
-        ${l.can_review ? `<form id="revForm"><div class="field"><label>Votre note</label><select name="rating">${[5, 4, 3, 2, 1].map(n => `<option value="${n}">${"★".repeat(n)}</option>`).join("")}</select></div><div class="field"><label>Votre avis</label><textarea name="comment" minlength="10" maxlength="800" required style="min-height:80px"></textarea></div><button class="btn sm">Publier l'avis</button></form>` : '<p class="hint">Seuls les clients ayant échangé avec l\'hôte via Ndaku peuvent laisser un avis.</p>'}</div>
+      <div class="block-sec"><h2>${l.reviews_count ? `${I.star} ${Number(l.rating).toFixed(1)} · ${l.reviews_count} avis vérifiés sur le bien` : "Avis sur le bien"}</h2>
+        ${l.reviews.map(r => `<div class="rev">${avatar(r.avatar, r.name)}<div><div class="who">${esc(r.name)} ${stars(r.rating)}</div><time>${when(r.created_at)}</time><div>${esc(r.comment)}</div></div></div>`).join("") || '<p class="hint">Aucun avis pour le moment.</p>'}
+        ${l.can_review ? `<form id="revForm"><div class="field"><label>Votre note</label><select name="rating">${[5, 4, 3, 2, 1].map(n => `<option value="${n}">${n} / 5 · ${RATING_WORD[n]}</option>`).join("")}</select></div><div class="field"><label>Votre avis</label><textarea name="comment" minlength="10" maxlength="800" required style="min-height:80px"></textarea></div><button class="btn sm">Publier l'avis</button></form>` : '<p class="hint">Seuls les clients ayant échangé avec l\'hôte via Ndaku peuvent laisser un avis.</p>'}</div>
     </div>
     <aside><div class="panel"><div><div class="big">${esc("$" + fmt(l.price))}${l.deal === "location" ? " <small>/ mois</small>" : ""}</div>
         <p class="hint hide-m" style="margin:6px 0 0">${esc(l.commune)}, ${esc(l.city)}</p></div>
       ${isOwner || isAdmin ? `<div class="hide-m"><p class="hint" style="margin-top:12px">Vous gérez cette annonce.</p>${isOwner && l.status === "active" ? `<button class="btn ghost block" data-close="${l.id}">Marquer comme ${l.deal === "location" ? "loué" : "vendu"}</button>` : ""}</div>`
         : l.conversation_id ? `<a class="btn" href="#/messages/${l.conversation_id}">Ouvrir la discussion</a>` : `<button class="btn" data-visit="${l.id}">Demander une visite</button>`}
-      <div class="safe hide-m"><b>🛡 Restez protégé</b><br>Ne versez jamais d'argent avant d'avoir visité. Chaque photo et chaque adresse sont uniques sur Ndaku.</div></div></aside></div></div>`;
+      ${isOwner && l.status !== "rejected" ? `<button class="btn ghost block hide-m" style="margin-top:10px" data-slots="${l.id}">${ic("cal", 16)} Proposer des créneaux de visite</button>` : ""}
+      <div class="safe hide-m"><b>${ic("shield", 16)} Restez protégé</b><br>Ne versez jamais d'argent avant d'avoir visité. Chaque photo et chaque adresse sont uniques sur Ndaku.</div></div></aside></div></div>`;
   state.gallery = imgs;
   if (l.lat != null) {
     const map = makeMap($("#dmap"), [l.lat, l.lng], 15);
     if (l.exact_location) L.marker([l.lat, l.lng], { icon: L.divIcon({ className: "pin-wrap", html: pinHtml(l), iconSize: null }) }).addTo(map);
     else L.circle([l.lat, l.lng], { radius: 250, color: "#F26122", fillColor: "#F26122", fillOpacity: .2, weight: 2 }).addTo(map);
   }
+  drawSlots(l, isOwner).catch(() => {});
+  if (l.status === "active") marketCompare(l).catch(() => {});
   const rf = $("#revForm");
   if (rf) rf.onsubmit = async e => { e.preventDefault(); if (needAvatar()) return; try { await api(`/api/listings/${id}/reviews`, { json: Object.fromEntries(new FormData(rf)) }); toast("Merci pour votre avis !"); detail(id); } catch (x) { toast(x.message); } };
 }
@@ -552,11 +626,12 @@ async function messages(cid) {
   if (!$("#chat")) view.innerHTML = `<div class="chat" id="chat"><div class="inbox"><h1>Messages</h1><div id="convs">${SK.rows(6)}</div></div><section class="thread" id="thread"><div class="chat-empty"><div><h3>Vos discussions</h3><p>Demandez une visite depuis une annonce pour démarrer une discussion avec l'hôte.</p></div></div></section></div>`;
   const chat = $("#chat");
   chat.classList.toggle("has-thread", !!cid);
+  document.body.classList.toggle("in-thread", !!cid);
   const drawInbox = async () => {
     const r = await api("/api/conversations");
     $("#convs").innerHTML = r.items.length ? r.items.map(c => `<a class="conv ${c.id === cid ? "on" : ""} ${c.unread ? "unread" : ""}" href="#/messages/${c.id}">
-      ${avatar(c.other_avatar, c.other_name, "lg")}<div class="t"><b>${esc(c.other_name)}${c.other_verified ? " ✓" : ""}</b><span>${esc(c.title)}</span>
-      <span>${c.last_mine ? "Vous : " : ""}${esc(c.last_kind === "contact" ? "📇 Coordonnées partagées" : (c.last_body || "").slice(0, 80))}</span></div>
+      ${avatar(c.other_avatar, c.other_name, "lg")}<div class="t"><b>${esc(c.other_name)}${c.other_verified ? " " + verifiedTick : ""}</b><span>${esc(c.title)}</span>
+      <span>${c.last_mine ? "Vous : " : ""}${c.last_kind === "contact" ? ic("idcard", 14) + " Coordonnées partagées" : c.last_kind === "visit" ? ic("cal", 14) + " " + esc((c.last_body || "").slice(0, 70)) : esc((c.last_body || "").slice(0, 80))}</span></div>
       ${c.unread ? '<span class="u" aria-label="non lu"></span>' : ""}</a>`).join("")
       : '<p class="hint" style="padding:0 20px">Aucune discussion pour le moment.</p>';
   };
@@ -567,17 +642,17 @@ async function messages(cid) {
   let t = await api(`/api/conversations/${cid}`), lastId = 0;
   const bubble = m => {
     const meta = m.meta || {};
-    const kind = m.kind === "visit" ? `<span class="k">Demande de visite${meta.date ? " · " + esc(new Date(meta.date + "T12:00").toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })) : ""}</span>`
-      : m.kind === "contact" ? '<span class="k">📇 Coordonnées partagées</span>' : "";
-    return `${m.warn ? '<div class="warn">⚠️ Ce message parle d\'argent. Ne payez jamais d\'acompte, de caution ou de « frais de visite » avant d\'avoir visité le bien et vérifié les documents.</div>' : ""}
+    const kind = m.kind === "visit" ? `<span class="k">${ic("cal", 13)} ${meta.slot_id ? "Visite réservée" : "Demande de visite"}${meta.date ? " · " + esc(new Date(meta.date + "T12:00").toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })) : ""}</span>`
+      : m.kind === "contact" ? `<span class="k">${ic("idcard", 13)} Coordonnées partagées</span>` : "";
+    return `${m.warn ? '<div class="warn">${ic("alert", 15)} Ce message parle d\'argent. Ne payez jamais d\'acompte, de caution ou de « frais de visite » avant d\'avoir visité le bien et vérifié les documents.</div>' : ""}
       <div class="bubble ${m.mine ? "mine" : ""} ${m.kind !== "text" ? m.kind : ""}">${kind}${esc(m.body)}<time>${hour(m.created_at)} · ${when(m.created_at)}</time></div>`;
   };
-  th.innerHTML = `<div class="thread-h"><a class="icon-btn" href="#/messages" aria-label="Retour">←</a>${avatar(t.other.avatar, t.other.name)}
-      <div class="t"><b>${esc(t.other.name)}${t.other.verified ? " ✓" : ""}</b><a href="#/listing/${t.listing_id}">${esc(t.title)}</a></div>
-      <button class="btn soft sm" data-share="${cid}" aria-label="Partager mes coordonnées">📇<span class="hide-sm"> Mes coordonnées</span></button><button class="icon-btn" data-convmenu="${cid}" aria-label="Plus d'options">⋯</button></div>
+  th.innerHTML = `<div class="thread-h"><a class="icon-btn" href="#/messages" aria-label="Retour">${ic("back", 22)}</a>${avatar(t.other.avatar, t.other.name)}
+      <div class="t"><b>${esc(t.other.name)}${t.other.verified ? " " + verifiedTick : ""}</b><a href="#/listing/${t.listing_id}">${esc(t.title)}</a></div>
+      <button class="btn soft sm" data-share="${cid}" aria-label="Partager mes coordonnées">${ic("idcard", 16)}<span class="hide-sm"> Mes coordonnées</span></button><button class="icon-btn" data-convmenu="${cid}" aria-label="Plus d'options">${ic("dots", 22)}</button></div>
     <div class="msgs" id="msgs"></div>
     ${t.blocked ? `<div class="notice warn" style="margin:12px">Discussion bloquée${t.blocked_by_me ? ` · <button class="linkish" data-unblock="${cid}">Débloquer</button>` : ""}.</div>`
-      : `<form class="composer" id="cmp"><textarea name="body" rows="1" maxlength="2000" placeholder="Écrire un message…" aria-label="Message" required></textarea><button class="btn">Envoyer</button></form>`}`;
+      : `<form class="composer" id="cmp"><textarea name="body" rows="1" maxlength="2000" placeholder="Écrire un message…" aria-label="Message" required></textarea><button class="btn send" aria-label="Envoyer">${ic("send", 18)}<span class="hide-sm">Envoyer</span></button></form>`}`;
   const box = $("#msgs");
   const append = list => { if (!list.length) return; box.insertAdjacentHTML("beforeend", list.map(bubble).join("")); lastId = list[list.length - 1].id; box.scrollTop = box.scrollHeight; };
   append(t.messages);
@@ -586,6 +661,7 @@ async function messages(cid) {
   if (cmp) {
     const ta = cmp.querySelector("textarea");
     ta.addEventListener("input", () => { ta.style.height = "auto"; ta.style.height = Math.min(ta.scrollHeight, 140) + "px"; });
+    ta.addEventListener("focus", () => setTimeout(() => { box.scrollTop = box.scrollHeight; }, 300));
     ta.addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey && !matchMedia("(max-width:760px)").matches) { e.preventDefault(); cmp.requestSubmit(); } });
     cmp.onsubmit = async e => {
       e.preventDefault(); const body = ta.value.trim(); if (!body) return;
@@ -611,7 +687,7 @@ function shareModal(cid) {
   };
 }
 function convMenu(cid) {
-  const m = modal("Options de la discussion", `<div class="radio-list"><button class="btn ghost block" data-block="${cid}">🚫 Bloquer cette personne</button></div>
+  const m = modal("Options de la discussion", `<div class="radio-list"><button class="btn ghost block" data-block="${cid}">${ic("ban", 16)} Bloquer cette personne</button></div>
     <form id="ur"><h3 style="margin:8px 0">Signaler cette personne</h3><div class="radio-list">
       ${[["arnaque", "Demande d'argent / arnaque"], ["harcelement", "Harcèlement ou propos déplacés"], ["faux_profil", "Faux profil"], ["autre", "Autre"]].map(([k, v], i) => `<label><input type="radio" name="category" value="${k}" ${i ? "" : "checked"}><span>${v}</span></label>`).join("")}</div>
       <div class="field"><textarea name="reason" maxlength="500" placeholder="Détails (facultatif)" style="min-height:70px"></textarea></div>
@@ -629,24 +705,30 @@ async function favorites() {
   $("#view").innerHTML = `<div class="wrap page"><h1>Mes favoris</h1><div id="fv">${SK.cards(4)}</div></div>`;
   const r = await api("/api/favorites");
   state.favs = new Set(r.items.map(l => l.id));
+  cacheFavoritesOffline(r.items);
   $("#fv").innerHTML = r.items.length ? `<p class="sec-sub">${r.items.length} bien${r.items.length > 1 ? "s" : ""} enregistré${r.items.length > 1 ? "s" : ""}.</p><div class="grid">${r.items.map(l => cardHtml(l)).join("")}</div>`
-    : '<div class="empty"><h3>Aucun favori</h3><p>Touchez le ♡ d\'une annonce pour la retrouver ici, sur tous vos appareils.</p><a class="btn" href="#/">Explorer</a></div>';
+    : '<div class="empty"><h3>Aucun favori</h3><p>Touchez le cœur d\'une annonce pour la retrouver ici, sur tous vos appareils — même sans connexion.</p><a class="btn" href="#/">Explorer</a></div>';
 }
 async function profile() {
   const u = state.user;
   if (!u) { $("#view").innerHTML = `<div class="wrap empty"><h3>Bienvenue sur Ndaku</h3><p>Connectez-vous pour gérer vos favoris, vos messages et vos annonces.</p><div class="row-actions" style="justify-content:center"><button class="btn" data-act="login">Se connecter</button><button class="btn ghost" data-act="signup">S'inscrire</button></div></div>`; return; }
   $("#view").innerHTML = `<div class="wrap page" style="max-width:640px"><div class="profile-head">${avatar(u.avatar, u.name, "xl")}<div><h1 style="margin:0">${esc(u.name)}</h1>
-      <p class="hint">${u.role === "host" ? "Hôte" : u.role === "admin" ? "Administrateur" : "Client"}${u.verified ? " · ✓ vérifié" : ""} · ${esc(u.email)}</p><button class="btn soft sm" data-act="avatar">Changer de photo</button></div></div>
+      <p class="hint">${u.role === "host" ? "Hôte" : u.role === "admin" ? "Administrateur" : "Client"}${u.verified ? ` · ${verifiedTick} identité vérifiée` : ""} · ${esc(u.email)}</p><button class="btn soft sm" data-act="avatar">Changer de photo</button></div></div>
     <form id="pf" class="form"><div class="field"><label for="p-n">Nom</label><input id="p-n" name="name" value="${esc(u.name)}" maxlength="80" required></div>
       <div class="field"><label for="p-t">Téléphone</label><input id="p-t" name="phone" type="tel" value="${esc(u.phone || "")}" maxlength="30" placeholder="+243 …"><span class="hint">Jamais affiché publiquement : vous le partagez vous-même dans une discussion.</span></div>
       <div class="err" id="pfErr"></div><button class="btn">Enregistrer</button></form>
+    <div class="block-sec" id="notifPrefs"></div>
+    <div class="block-sec"><h2 style="font-size:18px">${ic("bell", 18)} Mes alertes de recherche</h2><p class="hint">Faites une recherche puis touchez « Créer une alerte » : nous vous prévenons dès qu'une maison correspondante est publiée.</p><div id="alerts">${SK.rows(2)}</div></div>
+    ${u.role === "host" ? `<div class="block-sec"><h2 style="font-size:18px">${ic("shield", 18)} Vérification d'identité</h2><p class="hint">${u.verified ? "Votre identité est vérifiée : le badge apparaît sur vos annonces." : "Pièce d'identité + selfie, examinés par l'équipe Ndaku puis effacés."}</p>${u.verified ? "" : '<a class="btn soft sm" href="#/verification">Faire vérifier mon identité</a>'}</div>` : ""}
+    <div class="block-sec"><a class="btn ghost sm" href="#/prix">${ic("trend", 16)} Prix du marché par commune</a></div>
     <div class="block-sec"><h2 style="font-size:18px">Sécurité</h2><p class="hint">Connexion : ${u.providers.length ? u.providers.map(p => p === "apple" ? "Apple (iCloud)" : "Google").join(", ") : ""}${u.providers.length && u.has_password ? " + " : ""}${u.has_password ? "mot de passe" : ""}</p>
       <div class="row-actions">${u.role === "host" ? '<a class="btn ghost sm" href="#/host">Mes annonces</a>' : ""}<button class="btn ghost sm" data-act="logout-all">Se déconnecter de tous les appareils</button><button class="btn ghost sm" data-act="logout">Se déconnecter</button></div></div></div>`;
   $("#pf").onsubmit = async e => {
     e.preventDefault();
-    try { state.user = (await api("/api/auth/me", { method: "PATCH", json: Object.fromEntries(new FormData(e.target)) })).user; renderHeader(); toast("Profil enregistré ✓"); }
+    try { state.user = (await api("/api/auth/me", { method: "PATCH", json: Object.fromEntries(new FormData(e.target)) })).user; renderHeader(); drawNotifPrefs(); toast("Profil enregistré"); }
     catch (x) { $("#pfErr").textContent = x.message; }
   };
+  drawNotifPrefs(); drawAlerts();
 }
 
 /* ============================================================================ espace hôte */
@@ -654,14 +736,18 @@ async function dashboard() {
   const u = state.user;
   if (!u) { $("#view").innerHTML = `<div class="wrap empty"><h3>Devenez hôte sur Ndaku</h3><p>Publiez vos maisons à louer ou à vendre en quelques minutes.</p><button class="btn" data-act="signup-host">Créer un compte hôte</button></div>`; return; }
   if (u.role !== "host") throw new Error("Espace réservé aux hôtes.");
-  $("#view").innerHTML = `<div class="wrap page"><div class="row-actions" style="justify-content:space-between;margin-bottom:12px"><h1 style="margin:0">Mes annonces</h1><a class="btn" href="#/new">+ Nouvelle annonce</a></div><div id="mine">${SK.rows(4)}</div></div>`;
-  const r = await api("/api/my/listings");
-  $("#mine").innerHTML = `${state.auth.email_verification && !u.email_verified ? '<div class="notice warn">Confirmez votre adresse e-mail pour publier. <button type="button" class="linkish" data-act="resend">Renvoyer l\'e-mail</button></div>' : ""}
+  $("#view").innerHTML = `<div class="wrap page"><div class="row-actions" style="justify-content:space-between;margin-bottom:12px"><h1 style="margin:0">Mes annonces</h1><a class="btn" href="#/new">${ic("plus", 16)} Nouvelle annonce</a></div><div id="mine">${SK.rows(4)}</div></div>`;
+  const [r, st] = await Promise.all([api("/api/my/listings"), api("/api/my/stats").catch(() => ({ items: [], daily: [] }))]);
+  const S = Object.fromEntries(st.items.map(x => [x.id, x]));
+  const sum = k => st.items.reduce((a, x) => a + (x[k] || 0), 0);
+  $("#mine").innerHTML = `${u.verified ? "" : `<div class="notice ok">${ic("shield", 16)} <b>Obtenez le badge « Hôte vérifié »</b> : les clients contactent davantage les hôtes vérifiés. <a href="#/verification">Vérifier mon identité</a></div>`}
+    ${r.items.length ? `<div class="tiles">${[["eye", "Vues (30 jours)", st.daily.reduce((a, d) => a + d.n, 0)], ["heart", "Favoris", sum("fav_count")], ["chat", "Contacts", sum("contacts")], ["cal", "Visites réservées", sum("visits")]].map(([i, lb, v]) => `<div class="tile">${ic(i, 18)}<b>${fmt(v)}</b><span>${lb}</span></div>`).join("")}</div>` : ""}
+    ${state.auth.email_verification && !u.email_verified ? '<div class="notice warn">Confirmez votre adresse e-mail pour publier. <button type="button" class="linkish" data-act="resend">Renvoyer l\'e-mail</button></div>' : ""}
     ${u.avatar ? "" : '<div class="notice warn">Ajoutez une photo de profil pour publier. <button type="button" class="linkish" data-act="avatar">Ajouter</button></div>'}
-    ${r.items.length ? `<div class="table-wrap"><table class="tbl"><thead><tr><th></th><th>Annonce</th><th>Prix</th><th>Statut</th><th>Discussions</th><th></th></tr></thead><tbody>
+    ${r.items.length ? `<div class="table-wrap"><table class="tbl"><thead><tr><th></th><th>Annonce</th><th>Prix</th><th>Statut</th><th title="Vues uniques">${ic("eye", 15)}</th><th title="Favoris">${ic("heart", 15)}</th><th title="Contacts">${ic("chat", 15)}</th><th title="Visites">${ic("cal", 15)}</th><th></th></tr></thead><tbody>
       ${r.items.map(l => `<tr><td>${safeUrl(l.cover) ? `<img class="thumb" src="${esc(safeUrl(l.cover))}" alt="">` : ""}</td><td><a href="#/listing/${l.id}"><b>${esc(l.title)}</b></a><br><span class="hint">${esc(l.address || "")} · ${esc(l.commune)}, ${esc(l.city)}</span>${l.status === "pending" ? `<br><span class="hint">En vérification : ${esc(l.risk_reasons.join(" · "))}</span>` : ""}</td>
-        <td>${money(l)}</td><td><span class="pill ${l.status}">${{ active: "En ligne", pending: "En vérification", rejected: "Rejetée", closed: l.deal === "location" ? "Loué" : "Vendu" }[l.status]}</span></td><td><a href="#/messages">${l.conversations}</a></td>
-        <td>${l.status === "active" || l.status === "closed" ? `<button class="btn danger sm" data-del="${l.id}">Supprimer</button>` : ""}</td></tr>`).join("")}</tbody></table></div>`
+        <td>${money(l)}</td><td><span class="pill ${l.status}">${{ active: "En ligne", pending: "En vérification", rejected: "Rejetée", closed: l.deal === "location" ? "Loué" : "Vendu" }[l.status]}</span></td><td>${S[l.id]?.views ?? 0}</td><td>${S[l.id]?.fav_count ?? 0}</td><td><a href="#/messages">${l.conversations}</a></td><td>${S[l.id]?.visits ?? 0}</td>
+        <td><div class="row-actions">${l.status === "active" || l.status === "pending" ? `<button class="btn soft sm" data-slots="${l.id}">${ic("cal", 14)} Créneaux</button>` : ""}${l.status === "active" || l.status === "closed" ? `<button class="btn danger sm" data-del="${l.id}" aria-label="Supprimer">${ic("trash", 14)}</button>` : ""}</div></td></tr>`).join("")}</tbody></table></div>`
       : '<div class="empty"><h3>Aucune annonce</h3><p>Publiez votre première maison.</p><a class="btn" href="#/new">Publier</a></div>'}`;
 }
 
@@ -694,8 +780,8 @@ function uploadPhoto(p) {
 function drawPv() {
   const box = $("#pvs"); if (!box) return;
   box.innerHTML = photos.map((p, i) => `<div class="pv ${p.state === "bad" ? "bad" : ""} ${i === 0 ? "first" : ""}"><img src="${p.url}" alt="">
-    <button type="button" data-rm="${i}" aria-label="Retirer">✕</button>
-    ${p.state === "up" ? '<div class="st">Vérification…</div>' : p.state === "ok" ? '<div class="st ok">✓ Unique</div>' : `<div class="why">${esc(p.reason)}</div>`}</div>`).join("");
+    <button type="button" data-rm="${i}" aria-label="Retirer">${ic("x", 14)}</button>
+    ${p.state === "up" ? '<div class="st">Vérification…</div>' : p.state === "ok" ? `<div class="st ok">${ic("check", 12)} Unique</div>` : `<div class="why">${esc(p.reason)}</div>`}</div>`).join("");
 }
 async function newListing() {
   const u = state.user;
@@ -721,8 +807,14 @@ async function newListing() {
     <div class="field"><label for="n-surf">Surface (m²) *</label><input id="n-surf" name="surface" type="number" min="9" required></div></div>
     <div class="field"><label for="n-desc">Description *</label><textarea id="n-desc" name="description" required minlength="60" maxlength="3000" placeholder="Décrivez le bien, le quartier, l'état, les conditions (60 caractères minimum)."></textarea>
       <span class="hint">Pas de numéro, e-mail ni lien ici : vous échangerez vos coordonnées dans la messagerie Ndaku.</span></div>
-    <label class="chk" style="margin-bottom:14px"><input type="checkbox" name="furnished" value="1"> Meublé</label>
-    <div class="field"><span class="lbl">Équipements</span><div class="tags">${M.amenities.map(a => `<label class="tag"><input type="checkbox" name="amenities" value="${esc(a)}">${esc(a)}</label>`).join("")}</div></div>
+    <h2 style="font-size:18px;margin:18px 0 4px">Courant, eau et accès</h2>
+    <p class="hint" style="margin-top:0">Soyez honnête : ces notes sont visibles par les clients et vérifiées lors des visites. 1 = très mauvais, 10 = parfait.</p>
+    ${[["elec_score", "bolt", "Qualité du courant", "Coupures fréquentes ? Tension stable ?"], ["water_score", "drop", "Qualité de l'eau", "Eau au robinet tous les jours ? Propre ?"], ["access_score", "road", "Accessibilité de la maison", "Facile à trouver et à atteindre en voiture ?"]].map(([k, i, lb, h]) =>
+      `<div class="field slider"><label for="n-${k}">${ic(i, 18)} ${lb} *</label><div class="sl-row"><input id="n-${k}" name="${k}" type="range" min="1" max="10" step="1" value="5" aria-describedby="n-${k}-v"><output id="n-${k}-v" for="n-${k}">5/10 · ${SCORE_WORD(5)}</output></div><span class="hint">${h}</span></div>`).join("")}
+    <div class="cols"><div class="field"><label for="n-road">${ic("road", 16)} Route menant à la maison *</label><select id="n-road" name="access_type" required><option value="">Choisir…</option>${Object.entries(M.access_types || {}).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join("")}</select></div>
+    <div class="field"><span class="lbl">${ic("rain", 16)} Accessible en saison des pluies ? *</span><div class="seg-pick mini"><label><input type="radio" name="rain_access" value="1"><b>Oui</b></label><label><input type="radio" name="rain_access" value="0"><b>Non</b></label></div></div></div>
+    <label class="chk" style="margin-bottom:14px"><input type="checkbox" name="furnished" value="1"> ${ic("sofa", 16)} Meublé</label>
+    <div class="field"><span class="lbl">Équipements</span><div class="tags">${M.amenities.map(a => `<label class="tag"><input type="checkbox" name="amenities" value="${esc(a)}">${ic(AMENITY_ICON[a], 16)} ${esc(a)}</label>`).join("")}</div></div>
     <div class="field"><span class="lbl">Photos (${M.min_images} à ${M.max_images}) — uniques, prises par vous</span>
       <label class="drop" id="drop" for="n-files">Glissez vos photos ici ou <u>parcourez</u><br><span class="hint">JPEG, PNG ou WebP · min. 480×320 · chaque photo est comparée à toutes les annonces existantes</span></label>
       <input id="n-files" type="file" accept="image/jpeg,image/png,image/webp" multiple hidden><div class="previews" id="pvs"></div></div>
@@ -731,8 +823,8 @@ async function newListing() {
   let loc = {}, pin = null;
   const map = makeMap($("#pinMap"));
   const setPin = ll => {
-    if (pin) pin.setLatLng(ll); else { pin = L.marker(ll, { draggable: true }).addTo(map); pin.on("dragend", () => { $("#pinHint").textContent = "Position enregistrée ✓"; }); }
-    $("#pinHint").textContent = "Position enregistrée ✓ (déplacez l'épingle si besoin)";
+    if (pin) pin.setLatLng(ll); else { pin = L.marker(ll, { draggable: true }).addTo(map); pin.on("dragend", () => { $("#pinHint").innerHTML = `${ic("checkc", 15)} Position enregistrée`; }); }
+    $("#pinHint").innerHTML = `${ic("checkc", 15)} Position enregistrée (déplacez l'épingle si besoin)`;
   };
   map.on("click", e => setPin(e.latlng));
   placePicker($("#npp"), { mode: "host", onChange: async v => {
@@ -743,6 +835,7 @@ async function newListing() {
     const p = (await children(parent)).find(x => x.id === v[deepest]);
     if (p?.lat != null) map.setView([p.lat, p.lng], { avenue_id: 17, quartier_id: 15, commune_id: 14, city_id: 12, province_id: 7 }[deepest], { animate: false });
   } });
+  $("#nf").addEventListener("input", e => { if (e.target.type === "range") $(`#${e.target.id}-v`).textContent = `${e.target.value}/10 · ${SCORE_WORD(+e.target.value)}`; });
   $("#nf").addEventListener("change", e => {
     if (e.target.name === "deal") $("#pl").textContent = e.target.value === "vente" ? "Prix de vente (USD) *" : "Loyer mensuel (USD) *";
     if (e.target.closest(".tag")) e.target.closest(".tag").classList.toggle("on", e.target.checked);
@@ -780,6 +873,9 @@ async function newListing() {
     const ok = photos.filter(p => p.state === "ok");
     if (ok.length < M.min_images) { err.textContent = `Ajoutez au moins ${M.min_images} photos.`; return; }
     const fd = new FormData(e.target), d = Object.fromEntries(fd);
+    if (!d.access_type || !fd.has("rain_access")) { err.textContent = "Indiquez le type de route et l'accès en saison des pluies."; return; }
+    for (const k of ["elec_score", "water_score", "access_score"]) d[k] = +d[k];
+    d.rain_access = d.rain_access === "1";
     const ll = pin.getLatLng();
     Object.assign(d, { amenities: fd.getAll("amenities"), furnished: fd.has("furnished"), image_ids: ok.map(p => p.id),
       commune_id: loc.commune_id, quartier_id: loc.quartier_id || null, avenue_id: loc.avenue_id, lat: ll.lat, lng: ll.lng });
@@ -787,14 +883,14 @@ async function newListing() {
     try {
       const r = await api("/api/listings", { json: d });
       photos = [];
-      toast(r.status === "active" ? "Annonce publiée ✓" : "Annonce reçue : vérification par la modération");
+      toast(r.status === "active" ? "Annonce publiée" : "Annonce reçue : vérification par la modération");
       go("#/host");
     } catch (x) { err.textContent = x.message; btn.disabled = false; btn.textContent = "Publier l'annonce"; }
   };
 }
 
 /* ============================================================================= modération */
-const ADMIN_TABS = [["queue", "Annonces en attente"], ["reports", "Signalements"], ["users", "Utilisateurs signalés"], ["places", "Lieux proposés"], ["osm", "Référentiel (OSM)"]];
+const ADMIN_TABS = [["queue", "Annonces en attente"], ["kyc", "Identités"], ["reports", "Signalements"], ["users", "Utilisateurs signalés"], ["places", "Lieux proposés"], ["osm", "Référentiel (OSM)"]];
 async function admin(tab) {
   if (state.user?.role !== "admin") throw new Error("Espace réservé à la modération.");
   $("#view").innerHTML = `<div class="wrap page"><h1>Modération</h1><div class="tabs">${ADMIN_TABS.map(([k, l]) => `<button class="${k === tab ? "on" : ""}" data-tab="${k}">${l}</button>`).join("")}</div><div id="adm">${SK.rows(5)}</div></div>`;
@@ -803,9 +899,16 @@ async function admin(tab) {
     const r = await api("/api/admin/queue");
     box.innerHTML = `<div class="notice ok"><b>Annonces de démonstration</b> — importe des annonces illustrées par de vraies photos de maisons de RDC (Wikimedia Commons, licences libres, crédits affichés). Elles arrivent ici : vérifiez chaque photo avant d'approuver.
       <div class="row-actions" style="margin-top:10px"><button class="btn sm" data-demo="commons">Importer (photos réelles)</button><span class="hint" id="demoSt"></span></div></div>
-      ${r.items.map(l => `<div class="block-sec"><div class="row-actions" style="align-items:flex-start;justify-content:space-between"><div style="display:flex;gap:14px">${safeUrl(l.cover) ? `<img class="thumb" src="${esc(safeUrl(l.cover))}" alt="">` : ""}<div><a href="#/listing/${l.id}"><b>${esc(l.title)}</b></a>${l.is_demo ? ' <span class="pill">Démo</span>' : ""}<br><span class="hint">Hôte : ${esc(l.host)} ${l.host_verified ? "✓" : `<button class="linkish" data-verify="${l.host_id}">vérifier l'hôte</button>`} · ${money(l)} · ${esc(l.commune)}</span>
+      ${r.items.map(l => `<div class="block-sec"><div class="row-actions" style="align-items:flex-start;justify-content:space-between"><div style="display:flex;gap:14px">${safeUrl(l.cover) ? `<img class="thumb" src="${esc(safeUrl(l.cover))}" alt="">` : ""}<div><a href="#/listing/${l.id}"><b>${esc(l.title)}</b></a>${l.is_demo ? ' <span class="pill">Démo</span>' : ""}<br><span class="hint">Hôte : ${esc(l.host)} ${l.host_verified ? verifiedTick : `<button class="linkish" data-verify="${l.host_id}">vérifier l'hôte</button>`} · ${money(l)} · ${esc(l.commune)}</span>
         ${l.risk_reasons.length || l.reports.length ? `<div class="risk" style="margin-top:8px"><b>Risque ${l.risk_score}</b><ul style="margin:4px 0 0">${l.risk_reasons.map(x => `<li>${esc(x)}</li>`).join("")}${l.reports.map(x => `<li>Signalement : ${esc(x)}</li>`).join("")}</ul></div>` : ""}</div></div>
-        <div class="row-actions"><button class="btn sm" data-decide="approve" data-id="${l.id}">Approuver</button><button class="btn danger sm" data-decide="reject" data-id="${l.id}">Rejeter</button></div></div></div>`).join("") || '<div class="empty"><h3>File vide 🎉</h3></div>'}`;
+        <div class="row-actions"><button class="btn sm" data-decide="approve" data-id="${l.id}">Approuver</button><button class="btn danger sm" data-decide="reject" data-id="${l.id}">Rejeter</button></div></div></div>`).join("") || '<div class="empty"><h3>${ic("checkc", 22)} File vide</h3></div>'}`;
+  } else if (tab === "kyc") {
+    const r = await api("/api/admin/verifications");
+    box.innerHTML = r.items.map(v => `<div class="block-sec kyc"><div class="row-actions" style="justify-content:space-between;align-items:flex-start">
+        <div class="hostrow">${avatar(v.avatar, v.name, "lg")}<div><b>${esc(v.name)}</b><br><span class="hint">${esc(v.email)} · ${esc(r.id_types[v.id_type] || v.id_type)} · ${v.listings} annonce(s) · ${when(v.created_at)}</span></div></div>
+        <div class="row-actions"><button class="btn sm" data-kyc="approve" data-id="${v.id}">Approuver</button><button class="btn danger sm" data-kyc="reject" data-id="${v.id}">Refuser</button></div></div>
+      <div class="kyc-docs"><figure><img src="/api/admin/verifications/${v.id}/id_doc" alt="Pièce d'identité" loading="lazy"><figcaption>Pièce d'identité</figcaption></figure><figure><img src="/api/admin/verifications/${v.id}/selfie" alt="Selfie" loading="lazy"><figcaption>Selfie avec la pièce</figcaption></figure></div>
+      <p class="hint">Comparez le visage du selfie, de la pièce et de la photo de profil. Les documents sont effacés dès votre décision.</p></div>`).join("") || `<div class="empty"><h3>${ic("checkc", 22)} Aucune demande en attente</h3></div>`;
   } else if (tab === "reports") {
     const r = await api("/api/admin/reports");
     box.innerHTML = r.items.map(g => `<div class="block-sec"><div class="row-actions" style="justify-content:space-between;align-items:flex-start"><div><a href="#/listing/${g.listing_id}"><b>${esc(g.title)}</b></a> <span class="pill ${esc(g.status)}">${esc(g.status)}</span><br><span class="hint">Hôte : ${esc(g.host)} · ${g.n} signalement${g.n > 1 ? "s" : ""}</span>
@@ -860,6 +963,275 @@ async function runDemo(source, btn) {
   } catch (x) { toast(x.message); btn.disabled = false; st.textContent = ""; }
 }
 
+/* ============================================================== v5 : confiance et services */
+const scoreRow = (i, label, n) => `<div class="score"><span class="s-l">${ic(i, 18)} ${label}</span>
+  <span class="meter" role="meter" aria-valuemin="1" aria-valuemax="10" aria-valuenow="${n}" aria-label="${esc(label)}"><i style="width:${n * 10}%"></i></span>
+  <b>${n}/10</b><span class="s-w">${SCORE_WORD(n)}</span></div>`;
+const dayLabel = ts => new Date(ts * 1000).toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" });
+const slotWhen = s => `${dayLabel(s.starts_at)} à ${hour(s.starts_at)}`;
+
+/* ------------------------------------------------------------- agenda de visites */
+async function drawSlots(l, isOwner) {
+  const box = $("#slots"); if (!box || (l.status !== "active" && !isOwner)) { box && box.remove(); return; }
+  const r = await api(`/api/listings/${l.id}/slots`);
+  const mine = r.items.find(s => s.mine), open = r.items.filter(s => s.status === "open");
+  let html = `<h2>${ic("cal", 20)} Visites</h2>`;
+  if (isOwner) {
+    html += r.items.length ? `<ul class="slot-list">${r.items.map(s => `<li><span>${ic("clock", 15)} ${slotWhen(s)}</span>${s.status === "booked" ? `<span class="pill active">Réservé par ${esc(s.booker || "un client")}</span>${s.conversation_id ? ` <a href="#/messages/${s.conversation_id}">Discussion</a>` : ""}` : '<span class="pill">Libre</span>'}
+        <button class="linkish" data-slotcancel="${s.id}" data-owner="1">Supprimer</button></li>`).join("")}</ul>` : '<p class="hint">Aucun créneau proposé. Proposez des horaires : les clients réservent en un clic.</p>';
+    html += `<button class="btn soft sm" data-slots="${l.id}">${ic("plus", 15)} Proposer des créneaux</button>`;
+  } else if (mine) {
+    html += `<div class="notice ok">${ic("checkc", 16)} Votre visite est réservée le <b>${slotWhen(mine)}</b>. <button class="linkish" data-slotcancel="${mine.id}">Annuler</button></div>`;
+  } else if (open.length) {
+    const days = {};
+    open.forEach(s => { (days[dayLabel(s.starts_at)] ||= []).push(s); });
+    html += `<p class="hint">Choisissez un créneau proposé par l'hôte : la visite est confirmée immédiatement.</p>` + Object.entries(days).slice(0, 7).map(([d, list]) =>
+      `<div class="slot-day"><b>${esc(cap(d))}</b><div class="slot-chips">${list.map(s => `<button class="chip-btn" data-book="${s.id}" data-when="${esc(slotWhen(s))}">${hour(s.starts_at)}</button>`).join("")}</div></div>`).join("");
+  } else {
+    html += `<p class="hint">L'hôte n'a pas encore proposé de créneaux. Demandez une visite par message.</p>`;
+  }
+  box.innerHTML = html;
+}
+function slotsModal(lid) {
+  const today = new Date(Date.now() + 864e5).toISOString().slice(0, 10);
+  const hours = ["08:00", "09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00"];
+  const m = modal("Proposer des créneaux de visite", `<form id="slf"><p class="hint">Choisissez un jour et les heures auxquelles vous pouvez faire visiter. Répétez pour d'autres jours.</p>
+    <div class="cols"><div class="field"><label for="sl-d">Jour</label><input id="sl-d" type="date" name="day" min="${new Date().toISOString().slice(0, 10)}" value="${today}" required></div>
+    <div class="field"><label for="sl-m">Durée</label><select id="sl-m" name="duration"><option value="30">30 min</option><option value="45">45 min</option><option value="60" selected>1 h</option></select></div></div>
+    <span class="lbl">Heures</span><div class="tags">${hours.map(h => `<label class="tag"><input type="checkbox" name="h" value="${h}">${ic("clock", 14)} ${h}</label>`).join("")}</div>
+    <div class="err" id="slErr" role="alert"></div><button class="btn block" style="margin-top:14px">Ajouter ces créneaux</button></form>`);
+  m.querySelector("#slf").addEventListener("change", e => { if (e.target.closest(".tag")) e.target.closest(".tag").classList.toggle("on", e.target.checked); });
+  m.querySelector("#slf").onsubmit = async e => {
+    e.preventDefault(); const fd = new FormData(e.target), hs = fd.getAll("h");
+    if (!hs.length) { $("#slErr").textContent = "Cochez au moins une heure."; return; }
+    const starts = hs.map(h => new Date(`${fd.get("day")}T${h}:00`).toISOString());
+    try { const r = await api(`/api/listings/${lid}/slots`, { json: { starts, duration: +fd.get("duration") } }); closeModal(); toast(`${r.created} créneau(x) ajouté(s)`); route(); }
+    catch (x) { $("#slErr").textContent = x.message; }
+  };
+}
+function bookModal(sid, whenTxt) {
+  if (needLogin() || needAvatar()) return;
+  const m = modal("Réserver une visite", `<form id="bkf"><p>${ic("cal", 16)} <b>${esc(cap(whenTxt))}</b></p>
+    <div class="field"><label for="bk-m">Message pour l'hôte (facultatif)</label><textarea id="bk-m" name="message" maxlength="500" style="min-height:70px" placeholder="Ex. Je viendrai avec mon épouse."></textarea></div>
+    <div class="safe">${ic("shield", 15)} Ne payez jamais de « frais de visite » : une visite sur Ndaku est gratuite.</div>
+    <div class="err" id="bkErr" role="alert"></div><button class="btn block" style="margin-top:12px">Confirmer la visite</button></form>`);
+  m.querySelector("#bkf").onsubmit = async e => {
+    e.preventDefault(); const b = e.target.querySelector(".btn"); b.disabled = true;
+    try { const r = await api(`/api/slots/${sid}/book`, { json: Object.fromEntries(new FormData(e.target)) }); closeModal(); toast("Visite réservée : l'hôte est prévenu."); go(`#/messages/${r.conversation_id}`); }
+    catch (x) { $("#bkErr").textContent = x.message; b.disabled = false; }
+  };
+}
+
+/* ----------------------------------------------------------------- prix du marché */
+async function marketCompare(l) {
+  const box = $("#mkt"); if (!box || !l.commune_id) return;
+  const r = await api(`/api/stats/prices?commune_id=${l.commune_id}&deal=${l.deal}`);
+  const c = r.current, rent = l.deal === "location";
+  const mine = rent ? l.price : l.price / (l.surface || 1);
+  let html = `<h2>${ic("trend", 20)} Prix à ${esc(l.commune)}</h2>`;
+  if (c?.n >= 3 && c.median) {
+    const d = Math.round((mine / c.median - 1) * 100);
+    html += `<p>${rent ? "Loyer médian" : "Prix médian au m²"} : <b>$${fmt(Math.round(c.median))}${rent ? " / mois" : " / m²"}</b> <span class="hint">(${c.n} annonces en ligne)</span></p>
+      <p>Ce bien est <b>${Math.abs(d) < 5 ? "dans la moyenne" : d > 0 ? `${d} % au-dessus` : `${-d} % en dessous`}</b>${Math.abs(d) < 5 ? "" : " de la médiane"}.${d < -40 ? ` <span class="unverif">${ic("alert", 14)} Prix très bas : méfiez-vous des arnaques.</span>` : ""}</p>`;
+  } else html += `<p class="hint">Pas encore assez d'annonces à ${esc(l.commune)} pour comparer les prix.</p>`;
+  html += `<a class="linkish" href="#/prix?city_id=${l.city_id}&deal=${l.deal}">Voir les prix par commune</a>`;
+  box.innerHTML = html; box.hidden = false;
+}
+const tipEl = () => $("#ctip") || Object.assign(document.body.appendChild(document.createElement("div")), { id: "ctip", className: "ctip" });
+function chartTip(e, html) { const t = tipEl(); if (!html) { t.style.opacity = 0; return; } t.innerHTML = html; t.style.opacity = 1; t.style.left = Math.min(e.clientX + 14, innerWidth - t.offsetWidth - 8) + "px"; t.style.top = (e.clientY - t.offsetHeight - 12) + "px"; }
+function barChart(rows, unit) {
+  const max = Math.max(...rows.map(r => r.median));
+  return `<div class="hbars" role="list">${rows.map(r => `<div class="hb" role="listitem" data-tip="${esc(r.commune)} · $${fmt(Math.round(r.median))} ${unit} · ${r.n} annonces">
+    <span class="hb-l">${esc(r.commune)}</span><span class="hb-t"><i style="width:${Math.max(2, r.median / max * 100)}%"></i><b>$${fmt(Math.round(r.median))}</b></span></div>`).join("")}</div>`;
+}
+function lineChart(pts, unit) {
+  const W = 640, H = 220, L = 52, R = 16, T = 14, B = 28;
+  const vals = pts.map(p => p.median), hi = Math.max(...vals) * 1.1, lo = 0;
+  const step = Math.pow(10, Math.floor(Math.log10(hi || 1))), top = Math.ceil(hi / step) * step;
+  const x = i => L + (pts.length < 2 ? (W - L - R) / 2 : i * (W - L - R) / (pts.length - 1)), y = v => T + (H - T - B) * (1 - (v - lo) / (top - lo));
+  const ticks = [0, top / 2, top], kfmt = v => v >= 1000 ? (v / 1000).toFixed(v % 1000 ? 1 : 0) + "K" : v;
+  const mlabel = mth => new Date(mth + "-15").toLocaleDateString("fr-FR", { month: "short", year: "2-digit" });
+  return `<svg class="lchart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Évolution du prix médian (${unit})">
+    ${ticks.map(t => `<line x1="${L}" x2="${W - R}" y1="${y(t)}" y2="${y(t)}" class="grid"/><text x="${L - 8}" y="${y(t) + 4}" text-anchor="end">$${kfmt(t)}</text>`).join("")}
+    ${pts.map((p, i) => (pts.length <= 6 || i % 2 === 0 || i === pts.length - 1) ? `<text x="${x(i)}" y="${H - 8}" text-anchor="middle">${mlabel(p.month)}</text>` : "").join("")}
+    <polyline points="${pts.map((p, i) => `${x(i)},${y(p.median)}`).join(" ")}" class="ln"/>
+    ${pts.map((p, i) => `<circle cx="${x(i)}" cy="${y(p.median)}" r="5" class="pt"/><rect x="${x(i) - 16}" y="${T}" width="32" height="${H - T - B}" class="hit" data-tip="${esc(mlabel(p.month))} · $${fmt(Math.round(p.median))} ${unit} · ${p.n} annonces"/>`).join("")}
+  </svg>`;
+}
+async function pricesPage(params) {
+  const view = $("#view");
+  let deal = params.deal === "vente" ? "vente" : "location", city = +params.city_id || null;
+  const provs = await children(null);
+  if (!city) {
+    const kin = provs.find(p => p.name === "Kinshasa");
+    city = kin ? (await children(kin.id)).find(c => c.kind === "city")?.id : null;
+  }
+  view.innerHTML = `<div class="wrap page" style="max-width:860px"><h1>${ic("trend", 24)} Prix du marché</h1>
+    <p class="hint">Médianes calculées sur les annonces réelles publiées sur Ndaku (hors démonstration). La médiane résiste aux prix extrêmes.</p>
+    <div class="cols"><div class="field"><label for="pp-p">Province</label><select id="pp-p">${provs.map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join("")}</select></div>
+    <div class="field"><label for="pp-c">Ville</label><select id="pp-c"></select></div></div>
+    <div class="tabs"><button class="${deal === "location" ? "on" : ""}" data-deal="location">Loyers</button><button class="${deal === "vente" ? "on" : ""}" data-deal="vente">Ventes (prix au m²)</button></div>
+    <div id="pz">${SK.rows(3)}</div></div>`;
+  const pSel = $("#pp-p"), cSel = $("#pp-c");
+  const fillCities = async pid => { const cs = (await children(pid)).filter(c => c.kind === "city"); cSel.innerHTML = cs.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join(""); return cs; };
+  let provId = provs[0]?.id;
+  for (const p of provs) { if ((await children(p.id)).some(c => c.id === city)) { provId = p.id; break; } }
+  if (provId) { pSel.value = provId; await fillCities(provId); if (city) cSel.value = city; }
+  const draw = async () => {
+    const cid = +cSel.value; if (!cid) return;
+    const name = cSel.selectedOptions[0]?.textContent || "";
+    $("#pz").innerHTML = SK.rows(3);
+    const r = await api(`/api/stats/prices?city_id=${cid}&deal=${deal}`), unit = deal === "location" ? "/ mois" : "/ m²";
+    const c = r.current;
+    if (!c?.n) { $("#pz").innerHTML = `<div class="empty"><h3>Pas encore de données à ${esc(name)}</h3><p>Les médianes apparaîtront dès que des annonces réelles y seront publiées.</p></div>`; return; }
+    $("#pz").innerHTML = `<div class="tiles"><div class="tile">${ic("trend", 18)}<b>$${fmt(Math.round(c.median))}</b><span>${deal === "location" ? "Loyer médian" : "Prix médian au m²"} à ${esc(name)}</span></div><div class="tile">${ic("home", 18)}<b>${c.n}</b><span>annonces en ligne</span></div></div>
+      ${r.by_commune.length ? `<h2 class="chart-t">${deal === "location" ? "Loyer médian" : "Prix médian au m²"} par commune <span class="hint">(${unit}, communes avec au moins 2 annonces)</span></h2>${barChart(r.by_commune, unit)}` : ""}
+      ${r.monthly.length >= 2 ? `<h2 class="chart-t">Évolution sur 12 mois <span class="hint">(${unit})</span></h2>${lineChart(r.monthly, unit)}` : ""}
+      <details class="tbl-view"><summary>Voir les données en tableau</summary><div class="table-wrap"><table class="tbl"><thead><tr><th>Commune / mois</th><th>Médiane</th><th>Annonces</th></tr></thead><tbody>
+        ${r.by_commune.map(x => `<tr><td>${esc(x.commune)}</td><td>$${fmt(Math.round(x.median))}</td><td>${x.n}</td></tr>`).join("")}${r.monthly.map(x => `<tr><td>${esc(x.month)}</td><td>$${fmt(Math.round(x.median))}</td><td>${x.n}</td></tr>`).join("")}</tbody></table></div></details>`;
+  };
+  pSel.onchange = async () => { await fillCities(+pSel.value); draw(); };
+  cSel.onchange = draw;
+  $("#view").querySelector(".tabs").onclick = e => { const b = e.target.closest("[data-deal]"); if (!b) return; deal = b.dataset.deal; $("#view").querySelectorAll("[data-deal]").forEach(x => x.classList.toggle("on", x === b)); draw(); };
+  const pz = $("#pz");
+  pz.addEventListener("mousemove", e => { const h = e.target.closest("[data-tip]"); chartTip(e, h && h.dataset.tip); });
+  pz.addEventListener("mouseleave", e => chartTip(e, ""));
+  cleanup.push(() => chartTip({}, ""));
+  await draw();
+}
+
+/* ----------------------------------------------------------------- alertes */
+function alertModal() {
+  if (needLogin()) return;
+  const f = state.f;
+  const parts = [f.ptype ? cap(f.ptype) : "Bien", f.bedrooms ? `${f.bedrooms} ch. et +` : "", state.placeName ? `à ${state.placeName}` : "", f.max_price ? `≤ $${fmt(f.max_price)}` : ""].filter(Boolean);
+  const m = modal("Créer une alerte", `<form id="alf"><p>Nous vous prévenons (notification, et e-mail/SMS selon vos préférences) dès qu'une maison correspondant à cette recherche est publiée.</p>
+    <div class="field"><label for="al-l">Nom de l'alerte</label><input id="al-l" name="label" maxlength="120" value="${esc(parts.join(" "))}"></div>
+    <div class="err" id="alErr" role="alert"></div><button class="btn block">${ic("bell", 16)} Créer l'alerte</button></form>`);
+  m.querySelector("#alf").onsubmit = async e => {
+    e.preventDefault();
+    const d = { label: e.target.label.value };
+    ["deal", "ptype", "province_id", "city_id", "commune_id", "quartier_id", "min_price", "max_price", "bedrooms", "min_elec", "min_water"].forEach(k => { if (f[k]) d[k] = f[k]; });
+    if (f.furnished) d.furnished = true;
+    try { await api("/api/alerts", { json: d }); closeModal(); toast("Alerte créée : vous serez prévenu."); } catch (x) { $("#alErr").textContent = x.message; }
+  };
+}
+async function drawAlerts() {
+  const box = $("#alerts"); if (!box) return;
+  const r = await api("/api/alerts").catch(() => ({ items: [] }));
+  box.innerHTML = r.items.length ? `<ul class="slot-list">${r.items.map(a => `<li><span>${ic("bell", 15)} <b>${esc(a.label)}</b> <span class="hint">${[a.deal === "vente" ? "Achat" : a.deal === "location" ? "Location" : "", a.min_bedrooms ? a.min_bedrooms + " ch. et +" : "", a.max_price ? "≤ $" + fmt(a.max_price) : "", a.min_elec ? "courant ≥ " + a.min_elec : "", a.min_water ? "eau ≥ " + a.min_water : ""].filter(Boolean).join(" · ")}</span></span>
+    <button class="linkish" data-delalert="${a.id}">Supprimer</button></li>`).join("")}</ul>` : '<p class="hint">Aucune alerte.</p>';
+}
+
+/* ----------------------------------------------------------------- notifications */
+function drawNotifPrefs() {
+  const box = $("#notifPrefs"), u = state.user; if (!box || !u) return;
+  const ch = state.auth.notify_channels || {}, n = u.notify || {};
+  const row = (k, i, label, avail, why) => `<label class="chk ${avail ? "" : "off"}"><input type="checkbox" name="${k}" ${n[k] ? "checked" : ""} ${avail ? "" : "disabled"}> ${ic(i, 16)} ${label}${why ? ` <span class="hint">${why}</span>` : ""}</label>`;
+  const needPhone = !u.phone ? "(ajoutez votre numéro ci-dessus)" : !u.phone_verified ? "" : "";
+  box.innerHTML = `<h2 style="font-size:18px">${ic("bell", 18)} Être prévenu des nouveaux messages</h2>
+    <p class="hint">Les notifications n'incluent jamais le contenu de vos messages, seulement une invitation à ouvrir Ndaku.</p>
+    <form id="npf" class="notif-prefs">${row("email", "send", `E-mail (${esc(u.email)})`, true)}
+      ${row("sms", "chat", "SMS", ch.sms && u.phone_verified, !ch.sms ? "(bientôt disponible)" : needPhone)}
+      ${row("whatsapp", "chat", "WhatsApp", ch.whatsapp && u.phone_verified, !ch.whatsapp ? "(bientôt disponible)" : needPhone)}
+      ${(ch.sms || ch.whatsapp) && u.phone && !u.phone_verified ? `<button type="button" class="btn soft sm" data-act="phone">Confirmer mon numéro par SMS</button>` : ""}</form>`;
+  box.querySelector("#npf").onchange = async e => {
+    try { state.user = (await api("/api/auth/me", { method: "PATCH", json: { notify: { [e.target.name]: e.target.checked } } })).user; toast("Préférences enregistrées"); }
+    catch (x) { e.target.checked = !e.target.checked; toast(x.message); }
+  };
+}
+async function phoneModal() {
+  try { await api("/api/auth/me/phone/code", { method: "POST" }); } catch (x) { return toast(x.message); }
+  const m = modal("Confirmer mon numéro", `<form id="phf"><p>Un code à 6 chiffres a été envoyé par SMS au ${esc(state.user.phone)}.</p>
+    <div class="field"><label for="ph-c">Code</label><input id="ph-c" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" required></div>
+    <div class="err" id="phErr" role="alert"></div><button class="btn block">Confirmer</button></form>`);
+  m.querySelector("#phf").onsubmit = async e => {
+    e.preventDefault();
+    try { state.user = (await api("/api/auth/me/phone/verify", { json: { code: e.target.code.value.trim() } })).user; closeModal(); drawNotifPrefs(); toast("Numéro confirmé"); }
+    catch (x) { $("#phErr").textContent = x.message; }
+  };
+}
+const NOTIF_ICON = { message: "chat", alert: "bell", visit: "cal", kyc: "shield", review: "star", listing: "home" };
+async function notificationsPage() {
+  if (!state.user) throw Object.assign(new Error("Connexion requise"), { status: 401 });
+  $("#view").innerHTML = `<div class="wrap page" style="max-width:720px"><h1>Notifications</h1><div id="nl">${SK.rows(5)}</div></div>`;
+  const r = await api("/api/notifications");
+  $("#nl").innerHTML = r.items.length ? r.items.map(n => `<a class="notif ${n.read ? "" : "unread"}" href="${/^#\/[\w/?=&-]*$/.test(n.link) ? esc(n.link) : "#/"}">
+      <span class="n-ic">${ic(NOTIF_ICON[n.kind] || "bell", 20)}</span><span class="t"><b>${esc(n.title)}</b>${n.body ? `<span>${esc(n.body)}</span>` : ""}<time>${when(n.created_at)} · ${hour(n.created_at)}</time></span></a>`).join("")
+    : `<div class="empty"><h3>${ic("bell", 22)} Rien de nouveau</h3><p>Messages, visites et alertes de recherche apparaîtront ici.</p></div>`;
+  if (r.items.some(n => !n.read)) { api("/api/notifications/read", { method: "POST" }).catch(() => {}); state.user.notif_unread = 0; renderHeader(); }
+}
+
+/* ----------------------------------------------------------------- profil public de l'hôte */
+async function hostPage(id) {
+  $("#view").innerHTML = `<div class="wrap page">${SK.rows(1)}${SK.cards(3)}</div>`;
+  const h = await api(`/api/hosts/${id}`);
+  $("#view").innerHTML = `<div class="wrap page"><div class="profile-head">${avatar(h.avatar, h.name, "xl")}<div><h1 style="margin:0">${esc(h.name)}</h1>
+      <p class="hint">Hôte depuis ${new Date(h.since * 1000).toLocaleDateString("fr-FR", { month: "long", year: "numeric" })}</p>
+      ${h.verified ? `<span class="verif">${ic("shield", 15)} Identité vérifiée par Ndaku</span>` : '<span class="unverif">Identité non vérifiée</span>'}
+      <p>${h.rating ? `${stars(Math.round(h.rating))} <b>${Number(h.rating).toFixed(1)}</b> · ${h.reviews_count} avis` : '<span class="hint">Pas encore d\'avis</span>'}</p></div></div>
+    <h2 class="sec-title">Annonces de ${esc(h.name)}</h2>${h.listings.length ? `<div class="grid">${h.listings.map(l => cardHtml(l)).join("")}</div>` : '<p class="hint">Aucune annonce en ligne.</p>'}
+    <div class="block-sec" style="max-width:720px"><h2>Avis sur l'hôte</h2>
+      ${h.reviews.map(r => `<div class="rev">${avatar(r.avatar, r.name)}<div><div class="who">${esc(r.name)} ${stars(r.rating)}</div><time>${when(r.created_at)}</time><div>${esc(r.comment)}</div></div></div>`).join("") || '<p class="hint">Aucun avis pour le moment.</p>'}
+      ${h.can_review ? `<form id="hrf"><h3>Votre avis sur cet hôte</h3><div class="field"><label>Note</label><select name="rating">${[5, 4, 3, 2, 1].map(n => `<option value="${n}">${n} / 5 · ${RATING_WORD[n]}</option>`).join("")}</select></div>
+        <div class="field"><label>Ponctualité, honnêteté, réactivité…</label><textarea name="comment" minlength="10" maxlength="800" required style="min-height:80px"></textarea></div><button class="btn sm">Publier l'avis</button></form>`
+        : '<p class="hint">Seuls les clients ayant échangé avec l\'hôte via Ndaku peuvent le noter, une seule fois.</p>'}</div></div>`;
+  const f = $("#hrf");
+  if (f) f.onsubmit = async e => { e.preventDefault(); if (needAvatar()) return; try { await api(`/api/hosts/${id}/reviews`, { json: { rating: +f.rating.value, comment: f.comment.value } }); toast("Merci pour votre avis !"); hostPage(id); } catch (x) { toast(x.message); } };
+}
+
+/* ----------------------------------------------------------------- vérification d'identité */
+async function kycPage() {
+  const u = state.user;
+  if (!u) throw Object.assign(new Error("Connexion requise"), { status: 401 });
+  if (u.role !== "host") throw new Error("La vérification d'identité est réservée aux hôtes.");
+  $("#view").innerHTML = `<div class="wrap page" style="max-width:640px">${SK.rows(3)}</div>`;
+  const r = await api("/api/verification");
+  const req = r.request, head = `<h1>${ic("shield", 24)} Vérification d'identité</h1>`;
+  if (r.verified) { $("#view").innerHTML = `<div class="wrap page" style="max-width:640px">${head}<div class="notice ok">${ic("checkc", 16)} Votre identité est vérifiée. Le badge « Hôte vérifié » apparaît sur vos annonces.</div></div>`; return; }
+  if (req?.status === "pending") { $("#view").innerHTML = `<div class="wrap page" style="max-width:640px">${head}<div class="notice warn">${ic("clock", 16)} Demande envoyée le ${when(req.created_at)} : en cours d'examen par l'équipe Ndaku. Vous serez notifié.</div></div>`; return; }
+  $("#view").innerHTML = `<div class="wrap page" style="max-width:640px">${head}
+    ${req?.status === "rejected" ? `<div class="notice warn">${ic("alert", 16)} Demande précédente refusée${req.note ? ` : ${esc(req.note)}` : ""}. Vous pouvez en envoyer une nouvelle.</div>` : ""}
+    <p>Le badge « Hôte vérifié » rassure les clients et fait remonter vos annonces. Il nous faut :</p>
+    <form id="kf" class="form"><div class="field"><label for="k-t">Type de pièce</label><select id="k-t" name="id_type" required>${Object.entries(r.id_types).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join("")}</select></div>
+      <div class="field"><label for="k-d">${ic("idcard", 16)} Photo de la pièce (recto, lisible, sans reflet)</label><input id="k-d" name="id_doc" type="file" accept="image/jpeg,image/png,image/webp" capture="environment" required></div>
+      <div class="field"><label for="k-s">${ic("camera", 16)} Selfie en tenant la pièce près de votre visage</label><input id="k-s" name="selfie" type="file" accept="image/jpeg,image/png,image/webp" capture="user" required></div>
+      <div class="safe">${ic("shield", 15)} Vos documents ne sont jamais publiés : seule l'équipe de modération les voit, et ils sont <b>effacés dès la décision</b> (ou après 30 jours sans examen).</div>
+      <div class="err" id="kErr" role="alert"></div><button class="btn" style="margin-top:14px">Envoyer pour vérification</button></form></div>`;
+  $("#kf").onsubmit = async e => {
+    e.preventDefault(); if (needAvatar()) return;
+    const f = e.target, b = f.querySelector(".btn");
+    if (!f.id_doc.files[0] || !f.selfie.files[0]) { $("#kErr").textContent = "Ajoutez les deux photos."; return; }
+    b.disabled = true; b.textContent = "Envoi…";
+    try {
+      const fd = new FormData(); fd.append("id_type", f.id_type.value);
+      fd.append("id_doc", await shrink(f.id_doc.files[0], 1600)); fd.append("selfie", await shrink(f.selfie.files[0], 1600));
+      await api("/api/verification", { method: "POST", body: fd }); toast("Demande envoyée"); kycPage();
+    } catch (x) { $("#kErr").textContent = x.message; b.disabled = false; b.textContent = "Envoyer pour vérification"; }
+  };
+}
+
+/* ----------------------------------------------------------------- hors-ligne (favoris) */
+function clearOffline() { navigator.serviceWorker?.controller?.postMessage("clear"); }
+async function cacheFavoritesOffline(items) {
+  // Préchargement des fiches des favoris pour une consultation sans connexion (non compté comme une vue).
+  if (!navigator.serviceWorker?.controller || !navigator.onLine) return;
+  for (const l of items.slice(0, 30)) await fetch(`/api/listings/${l.id}`, { headers: { "X-Ndaku": "1", "X-Ndaku-Offline": "1" } }).catch(() => {});
+}
+function offlineBanner() {
+  let b = $("#offline");
+  if (navigator.onLine) { b && b.remove(); return; }
+  if (!b) { b = document.createElement("div"); b.id = "offline"; b.className = "offline"; document.body.prepend(b); }
+  b.innerHTML = `${ic("wifioff", 16)} Hors ligne : vos favoris restent consultables. <a href="#/favorites">Mes favoris</a>`;
+}
+addEventListener("online", offlineBanner); addEventListener("offline", offlineBanner);
+if ("serviceWorker" in navigator) addEventListener("load", () => navigator.serviceWorker.register("/sw.js").catch(() => {}));
+/* hauteur réelle visible (clavier mobile ouvert) pour garder la zone de saisie au-dessus du clavier */
+if (window.visualViewport) {
+  const setVh = () => document.documentElement.style.setProperty("--vvh", visualViewport.height + "px");
+  visualViewport.addEventListener("resize", setVh); setVh();
+}
+
 /* ================================================================================ événements */
 const act = async (path, json, okMsg) => { try { await api(path, json === undefined ? { method: "POST" } : { json }); if (okMsg) toast(okMsg); route(); } catch (x) { toast(x.message); } };
 document.addEventListener("click", async e => {
@@ -875,8 +1247,10 @@ document.addEventListener("click", async e => {
   if (a === "reset") { closeModal(); state.placeName = ""; return go("#/"); }
   if (a === "where-reset") { closeModal(); state.placeName = ""; const f = { ...state.f }; PLACE_LEVELS.forEach(([k]) => { f[k] = ""; }); f.bbox = ""; return go("#/" + qs(f)); }
   if (a === "lightbox") return lightbox(t.dataset.i);
+  if (a === "alert") return alertModal();
+  if (a === "phone") return phoneModal();
   if (a === "resend") return act("/api/auth/resend-verification", undefined, "E-mail de confirmation renvoyé.");
-  if (a === "logout" || a === "logout-all") { await api(a === "logout" ? "/api/auth/logout" : "/api/auth/logout-all", { method: "POST" }).catch(() => {}); state.user = null; state.favs = new Set(); renderHeader(); go("#/"); return toast("À bientôt !"); }
+  if (a === "logout" || a === "logout-all") { await api(a === "logout" ? "/api/auth/logout" : "/api/auth/logout-all", { method: "POST" }).catch(() => {}); clearOffline(); state.user = null; state.favs = new Set(); renderHeader(); go("#/"); return toast("À bientôt !"); }
   const tab = t.closest("[data-tab]"); if (tab) return go(`#/admin?tab=${tab.dataset.tab}`);
   const cat = t.closest("[data-cat]"); if (cat) return go("#/" + qs({ ...state.f, ptype: cat.dataset.cat }));
   const fav = t.closest("[data-fav]");
@@ -886,13 +1260,19 @@ document.addEventListener("click", async e => {
     try {
       const id = +fav.dataset.fav, r = await api(`/api/listings/${id}/favorite`, { method: "POST" });
       r.favorite ? state.favs.add(id) : state.favs.delete(id);
-      document.querySelectorAll(`[data-fav="${id}"]`).forEach(el => { el.classList.toggle("on", r.favorite); el.setAttribute("aria-pressed", r.favorite); if (el.matches(".btn")) el.textContent = r.favorite ? "♥ Enregistré" : "♡ Enregistrer"; });
+      document.querySelectorAll(`[data-fav="${id}"]`).forEach(el => { el.classList.toggle("on", r.favorite); el.setAttribute("aria-pressed", r.favorite); if (el.matches(".btn")) el.innerHTML = favLabel(r.favorite); });
       toast(r.favorite ? "Ajouté à vos favoris" : "Retiré de vos favoris");
       if (parse().path === "/favorites" && !r.favorite) route();
     } catch (x) { toast(x.message); }
     return;
   }
   const visit = t.closest("[data-visit]"); if (visit) return visitModal(+visit.dataset.visit);
+  const sl = t.closest("[data-slots]"); if (sl) return slotsModal(+sl.dataset.slots);
+  const bk = t.closest("[data-book]"); if (bk) return bookModal(+bk.dataset.book, bk.dataset.when);
+  const sc = t.closest("[data-slotcancel]"); if (sc) { if (confirm(sc.dataset.owner ? "Supprimer ce créneau ? Si un client l'a réservé, il sera prévenu." : "Annuler votre visite ?")) act(`/api/slots/${sc.dataset.slotcancel}/cancel`, undefined, "Créneau annulé."); return; }
+  const da = t.closest("[data-delalert]"); if (da) { try { await api(`/api/alerts/${da.dataset.delalert}`, { method: "DELETE" }); drawAlerts(); toast("Alerte supprimée"); } catch (x) { toast(x.message); } return; }
+  const kd = t.closest("[data-kyc]");
+  if (kd) { const note = kd.dataset.kyc === "reject" ? prompt("Motif du refus (envoyé à l'hôte) :", "Photos illisibles ou visage non concordant.") : ""; if (note === null) return; return act(`/api/admin/verifications/${kd.dataset.id}/decision`, { action: kd.dataset.kyc, note }); }
   const rep = t.closest("[data-report]"); if (rep) return reportModal(+rep.dataset.report);
   const share = t.closest("[data-share]"); if (share) return shareModal(+share.dataset.share);
   const cm = t.closest("[data-convmenu]"); if (cm) return convMenu(+cm.dataset.convmenu);
@@ -902,7 +1282,7 @@ document.addEventListener("click", async e => {
   if (del && confirm("Supprimer cette annonce ? Ses photos et son adresse seront libérées.")) { try { await api("/api/listings/" + del.dataset.del, { method: "DELETE" }); route(); } catch (x) { toast(x.message); } return; }
   const cl = t.closest("[data-close]"); if (cl) { try { await api("/api/listings/" + cl.dataset.close, { method: "PATCH", json: { status: "closed" } }); toast("Annonce clôturée"); route(); } catch (x) { toast(x.message); } return; }
   const demo = t.closest("[data-demo]"); if (demo) return runDemo(demo.dataset.demo, demo);
-  const ver = t.closest("[data-verify]"); if (ver) return act(`/api/admin/users/${ver.dataset.verify}/verify`, undefined, "Hôte vérifié ✓");
+  const ver = t.closest("[data-verify]"); if (ver) return act(`/api/admin/users/${ver.dataset.verify}/verify`, undefined, "Hôte vérifié");
   const dec = t.closest("[data-decide]"); if (dec) return act(`/api/admin/listings/${dec.dataset.id}/decision`, { action: dec.dataset.decide });
   const rc = t.closest("[data-rclose]"); if (rc) return act(`/api/admin/reports/${rc.dataset.id}/close`, { action: rc.dataset.rclose });
   const sus = t.closest("[data-suspend]"); if (sus && confirm("Suspendre ce compte ? Ses sessions sont coupées et ses annonces masquées.")) return act(`/api/admin/users/${sus.dataset.suspend}/suspend`, { suspend: true }, "Compte suspendu.");
@@ -915,14 +1295,18 @@ window.addEventListener("hashchange", route);
 /* ================================================================ messages non lus (pastille) */
 setInterval(async () => {
   if (!state.user || document.hidden || parse().path.startsWith("/messages/")) return;
-  try { const r = await api("/api/auth/me"); if (r.user && r.user.unread !== state.user.unread) { state.user.unread = r.user.unread; renderHeader(); } } catch { /* hors ligne */ }
+  try {
+    const r = await api("/api/auth/me");
+    if (r.user && (r.user.unread !== state.user.unread || r.user.notif_unread !== state.user.notif_unread)) { state.user.unread = r.user.unread; state.user.notif_unread = r.user.notif_unread; renderHeader(); }
+  } catch { /* hors ligne */ }
 }, 30000);
 
 (async () => {
   try {
     [state.meta, { user: state.user }, state.auth] = await Promise.all([api("/api/meta"), api("/api/auth/me"), api("/api/auth/config")]);
     await loadFavs();
-  } catch (e) { $("#view").innerHTML = errPage("Ndaku est momentanément indisponible. " + e.message); return; }
+  } catch (e) { $("#view").innerHTML = errPage(navigator.onLine ? "Ndaku est momentanément indisponible. " + e.message : "Vous êtes hors ligne. Reconnectez-vous pour utiliser Ndaku."); return; }
+  offlineBanner();
   route();
 })();
 })();
