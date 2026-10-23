@@ -2,10 +2,12 @@
 
 Marketplace style Airbnb (orange/blanc). Web aujourd'hui, apps mobiles ensuite : **le backend est une API JSON** que le site et les futures apps iOS/Android consomment de la même façon.
 
-- Comptes **client** / **hôte** : e-mail + mot de passe, **Google**, **Apple (iCloud)**
-- Annonces location ou vente, filtres ville/quartier/prix/chambres, « meilleures maisons »
-- Anti-fraude : une même photo (même recadrée, en miroir, recompressée) ne peut jamais servir deux fois
-- Demandes de visite, avis vérifiés, favoris, signalements, modération
+- Comptes **client** / **hôte** : e-mail + mot de passe, **Google**, **Apple (iCloud)** — photo de profil obligatoire
+- Annonces location ou vente, **carte** (épingles de prix, recherche dans la zone visible), « meilleures maisons »
+- Lieux en cascade : **26 provinces → villes → communes → quartiers → avenues** (+ numéro de maison)
+- Anti-fraude : une même photo ne sert jamais deux fois ; **une même adresse ne figure que dans une annonce**
+- **Messagerie** : la demande de visite ouvre une discussion privée, partage volontaire des coordonnées
+- Favoris, avis vérifiés, signalements par catégorie, modération, suspension de comptes
 
 ## Architecture
 
@@ -39,9 +41,17 @@ Marketplace style Airbnb (orange/blanc). Web aujourd'hui, apps mobiles ensuite :
 | `CRON_SECRET` | secret aléatoire pour la tâche planifiée |
 | `RESEND_API_KEY`, `MAIL_FROM` | envoi des e-mails (vérification, mot de passe oublié) ; active la vérification obligatoire |
 | `NDAKU_PUBLIC_URL` | URL publique utilisée dans les liens des e-mails |
+| `NDAKU_BLOB_ACCESS` | `private` (défaut, photos servies via `/media/`) ou `public` selon le store Blob |
+| `NDAKU_TILE_URL`, `NDAKU_TILE_ATTRIBUTION` | fond de carte (OpenStreetMap par défaut ; MapTiler/Stadia pour un gros trafic — ajouter alors le domaine à la CSP) |
 
 **Google** : console.cloud.google.com → Identifiants → ID client OAuth « Application Web », origines JavaScript autorisées = URL du site.
 **Apple** : developer.apple.com → Identifiers → Services ID avec « Sign in with Apple », domaine + Return URL = URL du site (compte Apple Developer requis).
+
+### Référentiel géographique (quartiers et avenues)
+Les provinces, villes et communes sont créées au premier démarrage. Pour les quartiers et avenues :
+**Modération → Référentiel (OSM)** → choisir la ville → « Importer toutes les communes » (données OpenStreetMap,
+licence ODbL). Les hôtes peuvent aussi proposer un quartier/une avenue manquant : utilisable aussitôt pour leur
+annonce, visible par tous après validation (**Modération → Lieux proposés**).
 
 ### Vraies photos
 Le conteneur de build n'est pas utilisé : une fois connecté en admin, page **Modération → Importer (photos réelles)**. Le serveur récupère des photos de maisons de Kinshasa et d'autres villes sur Wikimedia Commons (licences libres, auteur et licence affichés sur l'annonce), les passe par l'anti-fraude et crée des annonces **de démonstration** marquées comme telles, en attente : vérifier chaque photo avant d'approuver.
@@ -71,4 +81,8 @@ TEST_DATABASE_URL=postgresql://postgres@localhost:5432/ndaku_test python -m pyte
 | SQL injection | Requêtes paramétrées, colonnes/tri en liste blanche |
 | Fraude d'annonce | Photos uniques (empreintes exacte + perceptuelles, miroir inclus), adresse unique, coordonnées interdites, prix anormal, description copiée, 3 signalements = masquage, avis réservés aux clients ayant contacté l'hôte |
 
-Tests : `tests/` — 90 tests dont attaques sur l'authentification, OAuth, CSRF, IDOR, uploads et injections.
+| Arnaque dans la messagerie | Avertissement automatique quand un message parle d'acompte/paiement ; blocage et signalement en un clic |
+| Fuite d'adresse | Numéro et position exacte visibles seulement par l'hôte et les personnes qui l'ont contacté ; position publique arrondie (~110 m) |
+
+Tests : `tests/` — 120 tests dont attaques sur l'authentification, OAuth, CSRF, IDOR (messagerie comprise), uploads,
+injections, concurrence sur les adresses et cache CDN.
