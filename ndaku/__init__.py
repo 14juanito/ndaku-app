@@ -36,8 +36,8 @@ def create_app(**overrides):
         dbm.migrate(cfg.DATABASE_URL)
         _migrated.add(cfg.DATABASE_URL)
 
-    from . import admin, auth, listings, messages, places
-    for bp in (auth.bp, listings.bp, admin.bp, places.bp, messages.bp):
+    from . import admin, auth, listings, messages, places, services
+    for bp in (auth.bp, listings.bp, admin.bp, places.bp, messages.bp, services.bp):
         app.register_blueprint(bp)
 
     app.before_request(csrf_check)

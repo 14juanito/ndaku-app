@@ -189,11 +189,14 @@ def _insert_demo_listing(owner, title, desc, deal, pt, city, com, addr, price, b
     cover = one("SELECT url FROM images WHERE id=%s", (photo_ids[0],))["url"]
     return one("""INSERT INTO listings (owner_id, title, description, deal, ptype, province, city, commune, avenue,
                     house_number, address, province_id, city_id, commune_id, avenue_id, lat, lng, price, bedrooms,
-                    bathrooms, surface, furnished, amenities, status, addr_key, is_demo, cover_url)
-                  VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,TRUE,%s) RETURNING id""",
+                    bathrooms, surface, furnished, amenities, status, addr_key, is_demo, cover_url,
+                    elec_score, water_score, access_score, access_type, rain_access)
+                  VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,TRUE,%s,
+                          %s,%s,%s,%s,%s) RETURNING id""",
                (owner, title, desc, deal, pt, c["province"], city, com, avenue, number, f"{avenue} n° {number}",
                 c["province_id"], c["city_id"], c["commune_id"], av["id"], lat, lng, price, bed, bath, m2, bool(furn),
-                json.dumps(r.choice(AMS)), status, key, cover))["id"]
+                json.dumps(r.choice(AMS)), status, key, cover, r.randint(3, 9), r.randint(4, 10), r.randint(4, 10),
+                r.choice(("goudron", "pavee", "terre", "sable")), r.random() < 0.75))["id"]
 
 
 def create_demo(storage, source="illustrations", max_listings=4, status=None, budget_s=40.0):

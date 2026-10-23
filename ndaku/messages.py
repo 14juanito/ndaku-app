@@ -11,6 +11,7 @@ from flask import Blueprint, abort, jsonify, request
 
 from .auth import body, text
 from .db import all_, one, run
+from .notify import notify
 from .security import current_user, rate_limit, require
 
 bp = Blueprint("messages", __name__, url_prefix="/api")
@@ -40,8 +41,17 @@ def add_message(c, sender_id, body_text, kind="text", meta=None):
     m = one("""INSERT INTO messages (conversation_id, sender_id, kind, body, meta, flagged)
                VALUES (%s,%s,%s,%s,%s,%s) RETURNING id, extract(epoch FROM created_at)::float8 AS created_at""",
             (c["id"], sender_id, kind, body_text, json.dumps(meta or {}), flagged))
-    read_col = "client_read_at" if sender_id == c["client_id"] else "host_read_at"
+    sender_is_client = sender_id == c["client_id"]
+    read_col = "client_read_at" if sender_is_client else "host_read_at"
     run(f"UPDATE conversations SET last_message_at=now(), {read_col}=now() WHERE id=%s", (c["id"],))
+    # Prévenir le destinataire, au plus une fois toutes les 10 minutes par conversation (pas de rafales).
+    to_col = "host_notified_at" if sender_is_client else "client_notified_at"
+    to_id = c["host_id"] if sender_is_client else c["client_id"]
+    if one(f"""UPDATE conversations SET {to_col}=now() WHERE id=%s
+               AND ({to_col} IS NULL OR {to_col} < now() - interval '10 minutes') RETURNING id""", (c["id"],)):
+        who = one("SELECT name FROM users WHERE id=%s", (sender_id,))["name"]
+        notify(to_id, "message", f"Nouveau message de {who}", "Ouvrez la discussion sur Ndaku pour répondre.",
+               f"#/messages/{c['id']}")
     return m
 
 

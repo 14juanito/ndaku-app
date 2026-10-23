@@ -42,6 +42,11 @@ class Config:
         # ou "public" (URL directes *.public.blob.vercel-storage.com).
         self.BLOB_ACCESS = env.get("NDAKU_BLOB_ACCESS", "private")
         self.CRON_SECRET = env.get("CRON_SECRET")
+        # SMS / WhatsApp (Twilio) : facultatif ; sans ces variables seuls la cloche et l'e-mail fonctionnent.
+        self.TWILIO_ACCOUNT_SID = env.get("TWILIO_ACCOUNT_SID")
+        self.TWILIO_AUTH_TOKEN = env.get("TWILIO_AUTH_TOKEN")
+        self.TWILIO_FROM = env.get("TWILIO_FROM")
+        self.TWILIO_WHATSAPP_FROM = env.get("TWILIO_WHATSAPP_FROM")
         # Fond de carte : OpenStreetMap par défaut ; remplaçable (MapTiler, Stadia…) pour un trafic important.
         self.TILE_URL = env.get("NDAKU_TILE_URL", "https://tile.openstreetmap.org/{z}/{x}/{y}.png")
         self.TILE_ATTRIBUTION = env.get("NDAKU_TILE_ATTRIBUTION",

@@ -273,3 +273,103 @@ ALTER TABLE listings ADD COLUMN IF NOT EXISTS lat_pub NUMERIC(8,3) GENERATED ALW
                      ADD COLUMN IF NOT EXISTS lng_pub NUMERIC(8,3) GENERATED ALWAYS AS (round(lng::numeric, 3)) STORED;
 DROP INDEX IF EXISTS ix_listings_geo;
 CREATE INDEX IF NOT EXISTS ix_listings_geo_pub ON listings (lat_pub, lng_pub) WHERE status = 'active';
+
+-- ============================================================ v5 : qualité des services, confiance, agenda, alertes
+-- Qualité déclarée par l'hôte (1 = très mauvais … 10 = parfait) et accès à la maison
+ALTER TABLE listings ADD COLUMN IF NOT EXISTS elec_score SMALLINT CHECK (elec_score BETWEEN 1 AND 10),
+                     ADD COLUMN IF NOT EXISTS water_score SMALLINT CHECK (water_score BETWEEN 1 AND 10),
+                     ADD COLUMN IF NOT EXISTS access_score SMALLINT CHECK (access_score BETWEEN 1 AND 10),
+                     ADD COLUMN IF NOT EXISTS access_type TEXT,
+                     ADD COLUMN IF NOT EXISTS rain_access BOOLEAN,
+                     ADD COLUMN IF NOT EXISTS views INT NOT NULL DEFAULT 0,
+                     ADD COLUMN IF NOT EXISTS alerted_at TIMESTAMPTZ;
+
+ALTER TABLE users ADD COLUMN IF NOT EXISTS notify_email BOOLEAN NOT NULL DEFAULT TRUE,
+                  ADD COLUMN IF NOT EXISTS notify_sms BOOLEAN NOT NULL DEFAULT FALSE,
+                  ADD COLUMN IF NOT EXISTS notify_whatsapp BOOLEAN NOT NULL DEFAULT FALSE,
+                  ADD COLUMN IF NOT EXISTS host_rating_sum INT NOT NULL DEFAULT 0,
+                  ADD COLUMN IF NOT EXISTS host_rating_count INT NOT NULL DEFAULT 0,
+                  -- SMS/WhatsApp seulement vers un numéro prouvé par code (sinon : envoi de SMS à un tiers)
+                  ADD COLUMN IF NOT EXISTS phone_verified BOOLEAN NOT NULL DEFAULT FALSE,
+                  ADD COLUMN IF NOT EXISTS phone_code_hash TEXT,
+                  ADD COLUMN IF NOT EXISTS phone_code_expires TIMESTAMPTZ;
+ALTER TABLE conversations ADD COLUMN IF NOT EXISTS client_notified_at TIMESTAMPTZ,
+                          ADD COLUMN IF NOT EXISTS host_notified_at TIMESTAMPTZ;
+
+-- Vues uniques par jour (statistiques hôte) : l'identifiant du visiteur est haché, jamais stocké en clair
+CREATE TABLE IF NOT EXISTS listing_views (
+  listing_id  BIGINT NOT NULL REFERENCES listings(id) ON DELETE CASCADE,
+  day         DATE NOT NULL DEFAULT CURRENT_DATE,
+  viewer      TEXT NOT NULL,
+  PRIMARY KEY (listing_id, day, viewer)
+);
+
+-- Vérification d'identité : documents stockés en base (jamais servis publiquement), effacés après décision
+CREATE TABLE IF NOT EXISTS id_verifications (
+  id           BIGSERIAL PRIMARY KEY,
+  user_id      BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  id_type      TEXT NOT NULL,
+  id_doc       BYTEA,
+  selfie       BYTEA,
+  status       TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','approved','rejected')),
+  note         TEXT NOT NULL DEFAULT '',
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  decided_at   TIMESTAMPTZ,
+  decided_by   BIGINT REFERENCES users(id) ON DELETE SET NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_idv_pending ON id_verifications (user_id) WHERE status = 'pending';
+
+-- Alertes de recherche (critères en colonnes pour un appariement SQL direct)
+CREATE TABLE IF NOT EXISTS search_alerts (
+  id            BIGSERIAL PRIMARY KEY,
+  user_id       BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  label         TEXT NOT NULL,
+  deal          TEXT, ptype TEXT,
+  province_id   BIGINT, city_id BIGINT, commune_id BIGINT, quartier_id BIGINT,
+  min_price     NUMERIC(14,2), max_price NUMERIC(14,2), min_bedrooms INT,
+  furnished     BOOLEAN NOT NULL DEFAULT FALSE,
+  min_elec      SMALLINT, min_water SMALLINT,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS ix_alerts_user ON search_alerts (user_id);
+
+-- Notifications (cloche) ; l'envoi e-mail/SMS/WhatsApp est en plus, selon les préférences
+CREATE TABLE IF NOT EXISTS notifications (
+  id          BIGSERIAL PRIMARY KEY,
+  user_id     BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  kind        TEXT NOT NULL,
+  title       TEXT NOT NULL,
+  body        TEXT NOT NULL DEFAULT '',
+  link        TEXT NOT NULL DEFAULT '',
+  read_at     TIMESTAMPTZ,
+  ext_pending BOOLEAN NOT NULL DEFAULT FALSE,   -- relais e-mail/SMS/WhatsApp encore à envoyer (envoi différé)
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS ix_notif_user ON notifications (user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS ix_notif_pending ON notifications (created_at) WHERE ext_pending;
+
+-- Agenda de visites : l'hôte ouvre des créneaux, un client en réserve un
+CREATE TABLE IF NOT EXISTS visit_slots (
+  id               BIGSERIAL PRIMARY KEY,
+  listing_id       BIGINT NOT NULL REFERENCES listings(id) ON DELETE CASCADE,
+  starts_at        TIMESTAMPTZ NOT NULL,
+  ends_at          TIMESTAMPTZ NOT NULL CHECK (ends_at > starts_at),
+  status           TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open','booked','cancelled')),
+  booked_by        BIGINT REFERENCES users(id) ON DELETE SET NULL,
+  booked_at        TIMESTAMPTZ,
+  conversation_id  BIGINT REFERENCES conversations(id) ON DELETE SET NULL,
+  UNIQUE (listing_id, starts_at)
+);
+CREATE INDEX IF NOT EXISTS ix_slots_listing ON visit_slots (listing_id, starts_at);
+
+-- Avis sur les hôtes (en plus des avis sur les biens)
+CREATE TABLE IF NOT EXISTS host_reviews (
+  id          BIGSERIAL PRIMARY KEY,
+  host_id     BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  user_id     BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  rating      INT NOT NULL CHECK (rating BETWEEN 1 AND 5),
+  comment     TEXT NOT NULL,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (host_id, user_id),
+  CHECK (host_id <> user_id)
+);

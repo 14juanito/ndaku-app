@@ -6,6 +6,8 @@ from flask import Blueprint, abort, current_app, jsonify, request
 from .auth import body
 from .db import all_, one, run
 from .listings import BASE_SQL, REPORT_CATEGORIES, card
+from .notify import flush_pending, notify
+from .services import match_alerts
 from .security import revoke_all
 from .security import audit, cfg, current_user, require
 
@@ -31,12 +33,19 @@ def decide(lid):
     act = body().get("action")
     if act not in ("approve", "reject"):
         abort(400, "Action invalide.")
-    if not one("UPDATE listings SET status=%s WHERE id=%s AND status='pending' RETURNING id",
-               ("active" if act == "approve" else "rejected", lid)):
+    r = one("UPDATE listings SET status=%s WHERE id=%s AND status='pending' RETURNING owner_id, title, is_demo",
+            ("active" if act == "approve" else "rejected", lid))
+    if not r:
         abort(404, "Annonce non en attente.")
     run("UPDATE reports SET status=%s WHERE listing_id=%s AND status='open'",
         ("dismissed" if act == "approve" else "actioned", lid))
     audit(f"moderation_{act}", current_user()["id"], listing_id=lid)
+    if not r["is_demo"]:
+        notify(r["owner_id"], "listing", ("Annonce publiée : " if act == "approve" else "Annonce refusée : ") + r["title"],
+               "" if act == "approve" else "Elle ne respecte pas nos règles. Contactez le support pour en savoir plus.",
+               f"#/listing/{lid}" if act == "approve" else "#/host")
+    if act == "approve":
+        match_alerts(lid)
     return jsonify(ok=True)
 
 
@@ -62,7 +71,13 @@ def cleanup():
     run("DELETE FROM rate_limits WHERE window_start < now() - interval '2 days'")
     run("DELETE FROM email_tokens WHERE expires_at < now() - interval '7 days'")
     run("DELETE FROM oauth_nonces WHERE expires_at < now()")
-    return jsonify(ok=True, images_removed=len(stale))
+    run("DELETE FROM listing_views WHERE day < CURRENT_DATE - 90")
+    run("DELETE FROM notifications WHERE created_at < now() - interval '90 days'")
+    # Pièces d'identité jamais examinées : effacées après 30 jours (minimisation)
+    run("UPDATE id_verifications SET status='rejected', note='Expirée', id_doc=NULL, selfie=NULL, decided_at=now() "
+        "WHERE status='pending' AND created_at < now() - interval '30 days'")
+    sent = flush_pending(limit=200, budget=20.0)
+    return jsonify(ok=True, images_removed=len(stale), notifications_sent=sent)
 
 
 @bp.post("/admin/demo")

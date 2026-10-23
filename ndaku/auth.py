@@ -1,4 +1,5 @@
 """Comptes : e-mail + mot de passe, Google, Apple (iCloud). Sessions web (cookie) et mobiles (Bearer)."""
+import hmac
 import re
 import secrets
 import time
@@ -6,7 +7,7 @@ from datetime import timedelta
 
 from flask import Blueprint, abort, current_app, jsonify, request
 
-from . import mailer, oauth
+from . import mailer, notify, oauth
 from .db import all_, committed, one, run
 from .security import (audit, cfg, check_password, client_ip, current_user, end_session, hash_password, now,
                        password_problem, rate_limit, require, revoke_all, sha, start_session)
@@ -36,7 +37,10 @@ def public_user(u):
                    OR (c.host_id=%(u)s AND c.last_message_at > c.host_read_at)""", {"u": u["id"]})["n"]
     return {"id": u["id"], "name": u["name"], "email": u["email"], "role": u["role"], "verified": u["verified"],
             "email_verified": u["email_verified"], "has_password": u["pw_hash"] is not None, "providers": providers,
-            "avatar": u["avatar_url"], "phone": u["phone"], "unread": unread}
+            "avatar": u["avatar_url"], "phone": u["phone"], "phone_verified": u["phone_verified"], "unread": unread,
+            "notif_unread": one("SELECT COUNT(*)::int AS n FROM notifications WHERE user_id=%s AND read_at IS NULL",
+                                (u["id"],))["n"],
+            "notify": {"email": u["notify_email"], "sms": u["notify_sms"], "whatsapp": u["notify_whatsapp"]}}
 
 
 def session_response(user, kind, status=200):
@@ -88,7 +92,7 @@ def config():
     c = cfg()
     return jsonify(google_client_id=(c.GOOGLE_CLIENT_IDS or [None])[0],
                    apple_client_id=(c.APPLE_CLIENT_IDS or [None])[0], apple_redirect_uri=c.APPLE_REDIRECT_URI,
-                   email_verification=c.REQUIRE_EMAIL_VERIFICATION)
+                   email_verification=c.REQUIRE_EMAIL_VERIFICATION, notify_channels=notify.channels())
 
 
 @bp.get("/me")
@@ -346,5 +350,53 @@ def update_me():
         abort(400, "Nom invalide.")
     if phone and not re.fullmatch(r"\+?[0-9 ().-]{6,30}", phone):
         abort(400, "Numéro de téléphone invalide.")
-    run("UPDATE users SET name=%s, phone=%s WHERE id=%s", (name, phone, u["id"]))
+    prefs = {}
+    for ch in ("email", "sms", "whatsapp"):
+        v = d.get("notify", {}).get(ch) if isinstance(d.get("notify"), dict) else None
+        if v is not None:
+            if not isinstance(v, bool):
+                abort(400, "Préférence invalide.")
+            prefs[ch] = v
+    phone_changed = notify.e164(phone) != notify.e164(u["phone"])
+    phone_ok = u["phone_verified"] and not phone_changed
+    if (prefs.get("sms") or prefs.get("whatsapp")) and not phone_ok:
+        abort(400, "Confirmez d'abord votre numéro de téléphone (code par SMS).")
+    sms = prefs.get("sms", u["notify_sms"]) and phone_ok
+    wa = prefs.get("whatsapp", u["notify_whatsapp"]) and phone_ok
+    run("""UPDATE users SET name=%s, phone=%s, notify_email=%s, notify_sms=%s, notify_whatsapp=%s,
+                  phone_verified=%s WHERE id=%s""",
+        (name, phone, prefs.get("email", u["notify_email"]), sms, wa, phone_ok, u["id"]))
+    return jsonify(user=public_user(one("SELECT * FROM users WHERE id=%s", (u["id"],))))
+
+
+@bp.post("/me/phone/code")
+@require()
+def phone_code():
+    u = current_user()
+    to = notify.e164(u["phone"])
+    if not to or len(to) < 9:
+        abort(400, "Enregistrez d'abord un numéro de téléphone.")
+    if not notify.channels()["sms"]:
+        abort(503, "L'envoi de SMS n'est pas configuré.")
+    rate_limit(f"phone-code:{u['id']}", 3, 3600, "Trop de codes demandés. Réessayez dans une heure.")
+    rate_limit(f"phone-code-to:{to}", 5, 86400, "Trop de codes envoyés à ce numéro aujourd'hui.")
+    code = f"{secrets.randbelow(10**6):06d}"
+    run("UPDATE users SET phone_code_hash=%s, phone_code_expires=now() + interval '10 minutes' WHERE id=%s",
+        (sha(f"{u['id']}:{to}:{code}").hex(), u["id"]))
+    notify._twilio(to, f"Ndaku : votre code de confirmation est {code}. Il expire dans 10 minutes.")
+    return jsonify(ok=True)
+
+
+@bp.post("/me/phone/verify")
+@require()
+def phone_verify():
+    u, d = current_user(), body()
+    rate_limit(f"phone-verify:{u['id']}", 5, 3600, "Trop d'essais. Demandez un nouveau code plus tard.")
+    code = d.get("code")
+    to = notify.e164(u["phone"])
+    if (not isinstance(code, str) or not code.isdigit() or not to or not u["phone_code_hash"]
+            or u["phone_code_expires"] < now()
+            or not hmac.compare_digest(u["phone_code_hash"], sha(f"{u['id']}:{to}:{code}").hex())):
+        abort(400, "Code invalide ou expiré.")
+    run("UPDATE users SET phone_verified=TRUE, phone_code_hash=NULL WHERE id=%s", (u["id"],))
     return jsonify(user=public_user(one("SELECT * FROM users WHERE id=%s", (u["id"],))))

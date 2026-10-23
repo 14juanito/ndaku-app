@@ -113,6 +113,7 @@ def listing_payload(image_ids, loc, **over):
     return {"title": "Belle maison familiale", "description": "Maison lumineuse, quartier calme et sécurisé, "
             "proche des écoles et commerces, eau et électricité.", "deal": "location", "ptype": "maison",
             "house_number": "1", "price": 800, "bedrooms": 3, "bathrooms": 2, "surface": 150,
+            "elec_score": 7, "water_score": 8, "access_score": 6, "access_type": "goudron", "rain_access": True,
             "image_ids": image_ids, **loc, **over}
 
 

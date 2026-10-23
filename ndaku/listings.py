@@ -35,12 +35,17 @@ REPORTS_TO_HIDE = 3
 MAX_KM_FROM_COMMUNE = 20
 DRC_BOUNDS = (-13.6, 11.9, 5.6, 31.5)  # sud, ouest, nord, est
 SORTS = {"new": "l.created_at DESC", "price_asc": "l.price ASC", "price_desc": "l.price DESC"}
+ACCESS_TYPES = {"goudron": "Route goudronnée", "pavee": "Route pavée / béton", "terre": "Route en terre",
+                "sable": "Route sablonneuse", "ruelle": "Ruelle piétonne"}
+SCORE_FILTERS = (("min_elec", "elec_score"), ("min_water", "water_score"), ("min_access", "access_score"))
 PLACE_FILTERS = ("province_id", "city_id", "commune_id", "quartier_id", "avenue_id")
 
 # Compteurs dénormalisés (rating_sum/count, fav_count) : tri par score sans agrégat à chaque requête.
 BASE_SQL = """
 SELECT l.*, l.price::float8 AS price_f, extract(epoch FROM l.created_at)::float8 AS created_ts,
-       u.name AS host_name, u.verified AS host_verified, u.avatar_url AS host_avatar,
+       u.name AS host_name, u.verified AS host_verified, u.avatar_url AS host_avatar, u.host_rating_count,
+       CASE WHEN u.host_rating_count > 0 THEN ROUND(u.host_rating_sum::numeric / u.host_rating_count, 2)::float8
+            END AS host_rating,
        CASE WHEN l.rating_count > 0 THEN ROUND(l.rating_sum::numeric / l.rating_count, 2)::float8 END AS rating,
        l.rating_count AS reviews_count,
        ROUND(((3 * 3.5 + l.rating_sum)::numeric / (3 + l.rating_count) + 0.05 * l.fav_count
@@ -67,7 +72,8 @@ def card(r, favs=()):
             "furnished": r["furnished"], "status": r["status"], "rating": r["rating"],
             "reviews_count": r["reviews_count"], "score": r["score"], "cover": r["cover_url"],
             "host_verified": r["host_verified"], "favorite": r["id"] in favs, "created_at": r["created_ts"],
-            "is_demo": r["is_demo"], "lat": approx(r["lat"]), "lng": approx(r["lng"])}
+            "is_demo": r["is_demo"], "lat": approx(r["lat"]), "lng": approx(r["lng"]),
+            "elec_score": r["elec_score"], "water_score": r["water_score"], "access_score": r["access_score"]}
 
 
 def owned_listing(lid):
@@ -105,6 +111,10 @@ def search_filters(a):
             args.append(_num(a, key, 0, 1e9))
     if a.get("furnished") == "1":
         where.append("l.furnished")
+    for key, col in SCORE_FILTERS:
+        if a.get(key):
+            where.append(f"l.{col} >= %s")
+            args.append(_num(a, key, 1, 10, int))
     if a.get("q"):
         q = a["q"][:60].replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
         where.append("(l.title ILIKE %s OR l.description ILIKE %s OR l.avenue ILIKE %s OR l.quartier ILIKE %s)")
@@ -124,7 +134,7 @@ def search_filters(a):
 @bp.get("/meta")
 def meta():
     g.cache_seconds = 300
-    return jsonify(deals=DEALS, ptypes=PTYPES, amenities=AMENITIES, min_images=MIN_IMAGES, max_images=MAX_IMAGES,
+    return jsonify(deals=DEALS, ptypes=PTYPES, amenities=AMENITIES, access_types=ACCESS_TYPES, min_images=MIN_IMAGES, max_images=MAX_IMAGES,
                    report_categories=REPORT_CATEGORIES,
                    tiles={"url": current_app.config["NDAKU"].TILE_URL, "attribution": current_app.config["NDAKU"].TILE_ATTRIBUTION})
 
@@ -182,9 +192,10 @@ def get_listing(lid):
     d.update(description=r["description"], amenities=r["amenities"], avenue=r["avenue"],
              address=(f"{r['avenue']} n° {r['house_number']}" + (f", {r['unit']}" if r["unit"] else "")
                       if exact and r["house_number"] else None),
-             street=street, exact_location=exact,
+             street=street, exact_location=exact, access_type=r["access_type"], rain_access=r["rain_access"],
+             views=r["views"] if is_staff else None,
              host={"id": r["owner_id"], "name": r["host_name"], "verified": r["host_verified"],
-                   "avatar": r["host_avatar"]},
+                   "avatar": r["host_avatar"], "rating": r["host_rating"], "reviews_count": r["host_rating_count"]},
              images=[i["url"] for i in imgs], credits=[i["credit"] for i in imgs if i["credit"]],
              reviews=all_("""SELECT r.rating, r.comment, extract(epoch FROM r.created_at)::float8 AS created_at, u.name,
                                     u.avatar_url AS avatar
@@ -201,6 +212,9 @@ def get_listing(lid):
                                and one("SELECT 1 FROM messages WHERE conversation_id=%s AND sender_id=%s LIMIT 1",
                                        (conv["id"], u["id"]))
                                and not one("SELECT 1 FROM reviews WHERE listing_id=%s AND user_id=%s", (lid, u["id"])))
+    if r["status"] == "active":
+        from .services import record_view
+        record_view(lid, r["owner_id"])
     return jsonify(d)
 
 
@@ -327,7 +341,22 @@ def parse_listing(d):
     if ptype != "terrain" and bedrooms and surface / bedrooms < 8:
         abort(400, "Incohérence : surface trop petite pour ce nombre de chambres.")
     am = d.get("amenities") if isinstance(d.get("amenities"), list) else []
-    return dict(title=title, description=desc, deal=deal, ptype=ptype, price=round(price, 2), bedrooms=bedrooms,
+    scores = {}
+    for key, label in (("elec_score", "la qualité du courant"), ("water_score", "la qualité de l'eau"),
+                       ("access_score", "l'accessibilité")):
+        v = d.get(key)
+        if isinstance(v, str) and v.isdigit():
+            v = int(v)
+        if not isinstance(v, int) or isinstance(v, bool) or not 1 <= v <= 10:
+            abort(400, f"Notez {label} de 1 à 10.")
+        scores[key] = v
+    access_type = d.get("access_type")
+    if access_type not in ACCESS_TYPES:
+        abort(400, "Précisez le type de route menant à la maison.")
+    rain = d.get("rain_access")
+    if not isinstance(rain, bool):
+        abort(400, "Précisez si la maison reste accessible en saison des pluies.")
+    return dict(**scores, access_type=access_type, rain_access=rain,title=title, description=desc, deal=deal, ptype=ptype, price=round(price, 2), bedrooms=bedrooms,
                 bathrooms=bathrooms, surface=surface, furnished=d.get("furnished") in (True, 1, "1", "true", "on"),
                 amenities=[x for x in dict.fromkeys(am) if x in AMENITIES])
 
@@ -408,8 +437,9 @@ def create_listing():
         row = one("""INSERT INTO listings (owner_id, title, description, deal, ptype, province, city, commune, quartier,
                        avenue, house_number, unit, address, province_id, city_id, commune_id, quartier_id, avenue_id,
                        lat, lng, price, bedrooms, bathrooms, surface, furnished, amenities, status, risk_score,
-                       risk_reasons, addr_key, cover_url)
-                     VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                       risk_reasons, addr_key, cover_url, elec_score, water_score, access_score, access_type, rain_access)
+                     VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,
+                             %s,%s,%s,%s,%s)
                      RETURNING id""",
                   (u["id"], data["title"], data["description"], data["deal"], data["ptype"], loc["province"]["name"],
                    loc["city"]["name"], loc["commune"]["name"], q["name"] if q else None, loc["avenue"]["name"],
@@ -417,11 +447,15 @@ def create_listing():
                    loc["province"]["id"], loc["city"]["id"], loc["commune"]["id"], q["id"] if q else None,
                    loc["avenue"]["id"], loc["lat"], loc["lng"], data["price"], data["bedrooms"], data["bathrooms"],
                    data["surface"], data["furnished"], json.dumps(data["amenities"]), status, score,
-                   json.dumps(reasons), key, owned[ids[0]]))
+                   json.dumps(reasons), key, owned[ids[0]], data["elec_score"], data["water_score"],
+                   data["access_score"], data["access_type"], data["rain_access"]))
     except UniqueViolation:  # publication simultanée de la même adresse : l'index unique tranche
         abort(409, ADDRESS_TAKEN.format(unit_hint))
     for pos, iid in enumerate(ids):
         run("UPDATE images SET listing_id=%s, position=%s WHERE id=%s", (row["id"], pos, iid))
+    if status == "active":
+        from .services import match_alerts
+        match_alerts(row["id"])
     return jsonify(id=row["id"], status=status, reasons=reasons), 201
 
 
