@@ -36,6 +36,7 @@ def public_user(u):
                       (c.client_id=%(u)s AND c.last_message_at > c.client_read_at)
                    OR (c.host_id=%(u)s AND c.last_message_at > c.host_read_at)""", {"u": u["id"]})["n"]
     return {"id": u["id"], "name": u["name"], "email": u["email"], "role": u["role"], "verified": u["verified"],
+            "moderator": u["moderator"],
             "email_verified": u["email_verified"], "has_password": u["pw_hash"] is not None, "providers": providers,
             "avatar": u["avatar_url"], "phone": u["phone"], "phone_verified": u["phone_verified"], "unread": unread,
             "notif_unread": one("SELECT COUNT(*)::int AS n FROM notifications WHERE user_id=%s AND read_at IS NULL",

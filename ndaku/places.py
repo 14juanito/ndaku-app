@@ -81,7 +81,7 @@ def suggest():
 
 # ------------------------------------------------------------------ administration
 @bp.get("/admin/places/pending")
-@require("admin")
+@require("admin", "moderator")
 def pending():
     return jsonify(items=all_("""SELECT p.id, p.kind, p.name, par.name AS parent, par.kind AS parent_kind,
                                    u.name AS author, extract(epoch FROM p.created_at)::float8 AS created_at,
@@ -92,7 +92,7 @@ def pending():
 
 
 @bp.post("/admin/places/<int:pid>/decision")
-@require("admin")
+@require("admin", "moderator")
 def decide(pid):
     act = body().get("action")
     if act not in ("approve", "reject"):

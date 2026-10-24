@@ -39,6 +39,9 @@ const P = {
   lock: '<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
   gear: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
   logout: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/>',
+  flag: '<path d="M4 22V4M4 4h12l-2 4 2 4H4"/>',
+  search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/>',
+  list: '<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>',
   edit: '<path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>',
   dots: '<path d="M5 12h.01M12 12h.01M19 12h.01" stroke-width="3.2"/>',
   back: '<path d="M19 12H5M11 6l-6 6 6 6"/>',
@@ -278,7 +281,7 @@ function togglePop() {
       <a href="#/messages">Messages${u.unread ? ` (${u.unread})` : ""}</a><a href="#/notifications">Notifications${u.notif_unread ? ` (${u.notif_unread})` : ""}</a><a href="#/favorites">Favoris</a>
       ${u.role === "host" ? `<a href="#/host">Mes annonces et statistiques</a><a href="#/new">Publier une annonce</a>${u.verified ? "" : '<a href="#/verification">Vérifier mon identité</a>'}` : ""}
       <a href="#/prix">Prix du marché</a>
-      ${u.role === "admin" ? `<a href="#/admin">Modération</a>` : ""}<a href="#/profile">Paramètres</a><hr><button data-act="logout">Se déconnecter</button>`
+      ${u.role === "admin" || u.moderator ? `<a href="#/admin">${u.role === "admin" ? "Administration" : "Modération"}</a>` : ""}<a href="#/profile">Paramètres</a><hr><button data-act="logout">Se déconnecter</button>`
     : `<button data-act="login">Se connecter</button><button data-act="signup">S'inscrire</button><hr><button data-act="signup-host">Devenir hôte</button>`;
   document.body.append(p);
 }
@@ -428,7 +431,7 @@ async function route() {
     if (path === "/new") return await newListing();
     if (path === "/favorites") return await favorites();
     if (path === "/profile") return await profile();
-    if (path === "/admin") return await admin(params.tab || "queue");
+    if (path === "/admin") return await admin(params.tab || "dash", params);
     if ((m = path.match(/^\/hote\/(\d+)$/))) return await hostPage(+m[1]);
     if (path === "/notifications") return await notificationsPage();
     if (path === "/verification") return await kycPage();
@@ -964,16 +967,98 @@ async function newListing() {
 }
 
 /* ============================================================================= modération */
-const ADMIN_TABS = [["queue", "Annonces en attente"], ["kyc", "Identités"], ["reports", "Signalements"], ["users", "Utilisateurs signalés"], ["places", "Lieux proposés"], ["osm", "Référentiel (OSM)"]];
-async function admin(tab) {
-  if (state.user?.role !== "admin") throw new Error("Espace réservé à la modération.");
-  $("#view").innerHTML = `<div class="wrap page"><h1>Modération</h1><div class="tabs">${ADMIN_TABS.map(([k, l]) => `<button class="${k === tab ? "on" : ""}" data-tab="${k}">${l}</button>`).join("")}</div><div id="adm">${SK.rows(5)}</div></div>`;
+// [onglet, libellé, réservé à l'administrateur]
+const ADMIN_TABS = [["dash", "Tableau de bord"], ["queue", "Annonces en attente"], ["kyc", "Identités", 1], ["reports", "Signalements"],
+  ["users", "Comptes signalés"], ["accounts", "Utilisateurs", 1], ["places", "Lieux proposés"], ["logs", "Journal", 1], ["osm", "Référentiel (OSM)", 1]];
+const EVENT_LABEL = { login: "Connexion", register: "Inscription", account_locked: "Compte verrouillé (essais)", password_changed: "Mot de passe changé",
+  password_reset: "Mot de passe réinitialisé", identity_linked: "Compte Google/Apple lié", oauth_rejected: "Connexion Google/Apple refusée",
+  prehijack_neutralized: "Tentative de pré-appropriation bloquée", admin_promoted: "Promu administrateur", account_deleted: "Compte supprimé",
+  address_clash: "Adresse déjà publiée tentée", kyc_submitted: "Identité envoyée", kyc_viewed: "Pièce d'identité consultée", kyc_approve: "Identité approuvée",
+  kyc_reject: "Identité refusée", host_verified: "Badge vérifié accordé", host_unverified: "Badge vérifié retiré", user_suspended: "Compte suspendu",
+  user_restored: "Compte rétabli", moderator_granted: "Nommé modérateur", moderator_revoked: "Rôle de modérateur retiré",
+  moderation_approve: "Annonce approuvée", moderation_reject: "Annonce rejetée", reports_dismiss: "Signalements classés", reports_hide: "Annonce retirée",
+  place_approve: "Lieu validé", place_reject: "Lieu refusé", demo_import: "Import de démonstration", osm_import: "Import OpenStreetMap" };
+const isAdmin = () => state.user?.role === "admin";
+function columns(series, label) {
+  const max = Math.max(1, ...series.map(d => d.n));
+  return `<div class="cols-chart" role="img" aria-label="${esc(label)}">${series.map(d => `<span class="cc" data-tip="${esc(new Date(d.day + "T12:00").toLocaleDateString("fr-FR", { day: "numeric", month: "short" }))} · ${d.n}"><i style="height:${Math.max(d.n ? 4 : 0, d.n / max * 100)}%"></i></span>`).join("")}</div>
+    <div class="cc-axis"><span>il y a 30 j</span><span>max ${max}</span><span>aujourd'hui</span></div>`;
+}
+async function admin(tab, params = {}) {
+  const u = state.user;
+  if (!(u?.role === "admin" || u?.moderator)) throw new Error("Espace réservé à l'équipe Ndaku.");
+  const tabs = ADMIN_TABS.filter(t => !t[2] || isAdmin());
+  if (!tabs.some(t => t[0] === tab)) tab = "dash";
+  $("#view").innerHTML = `<div class="wrap page admin"><h1>${isAdmin() ? "Administration" : "Modération"}</h1><div class="tabs">${tabs.map(([k, l]) => `<button class="${k === tab ? "on" : ""}" data-tab="${k}">${l}</button>`).join("")}</div><div id="adm">${SK.rows(5)}</div></div>`;
   const box = $("#adm");
-  if (tab === "queue") {
+  if (tab === "dash") {
+    const r = await api("/api/admin/stats"), c = r.counts;
+    const todo = [["queue", "shield", "Annonces en attente", c.pending], ...(isAdmin() ? [["kyc", "idcard", "Identités à vérifier", c.kyc]] : []),
+      ["reports", "flag", "Annonces signalées", c.reports], ["users", "alert", "Comptes signalés", c.user_reports], ["places", "pin", "Lieux proposés", c.places]];
+    box.innerHTML = `<h2 class="chart-t">À traiter</h2><div class="tiles">${todo.map(([k, i, l, n]) => `<a class="tile todo ${n ? "hot" : ""}" href="#/admin?tab=${k}">${ic(i, 18)}<b>${fmt(n)}</b><span>${l}</span></a>`).join("")}</div>
+      <h2 class="chart-t">Activité</h2><div class="tiles">${[["user", "Utilisateurs", c.users, `+${c.users_7d} en 7 j`], ["home", "Hôtes", c.hosts, `${c.verified_hosts} vérifiés`],
+        ["list", "Annonces en ligne", c.active, `${c.demo} de démo · +${c.listings_7d} en 7 j`], ["chat", "Messages (7 j)", c.messages_7d, `${c.conversations_7d} nouvelles discussions`],
+        ["cal", "Visites réservées (7 j)", c.visits_7d, ""], ["ban", "Comptes suspendus", c.suspended, ""]].map(([i, l, n, sub]) => `<div class="tile">${ic(i, 18)}<b>${fmt(n)}</b><span>${l}</span>${sub ? `<span class="hint">${sub}</span>` : ""}</div>`).join("")}</div>
+      <div class="dash-charts"><div><h2 class="chart-t">Inscriptions par jour</h2>${columns(r.signups, "Inscriptions par jour sur 30 jours")}</div><div><h2 class="chart-t">Annonces publiées par jour</h2>${columns(r.listings, "Annonces publiées par jour sur 30 jours")}</div></div>`;
+    box.addEventListener("mousemove", e => { const h = e.target.closest("[data-tip]"); chartTip(e, h && h.dataset.tip); });
+    box.addEventListener("mouseleave", e => chartTip(e, ""));
+    cleanup.push(() => chartTip({}, ""));
+  } else if (tab === "accounts" && params.id) {
+    const d = await api(`/api/admin/users/${+params.id}`);
+    const roleTxt = d.role === "admin" ? "Administrateur" : d.role === "host" ? "Hôte" : "Client";
+    box.innerHTML = `<a class="linkish" href="#/admin?tab=accounts">${ic("back", 15)} Tous les utilisateurs</a>
+      <div class="profile-head" style="margin-top:14px">${avatar(d.avatar, d.name, "xl")}<div><h2 style="margin:0">${esc(d.name)} <span class="hint">#${d.id}</span></h2>
+        <p class="hint">${roleTxt}${d.moderator ? " · modérateur" : ""}${d.verified ? ` · ${verifiedTick} vérifié` : ""} · inscrit le ${when(d.created_at)}</p>
+        <p>${esc(d.email)}${d.email_verified ? "" : ' <span class="pill pending">non confirmé</span>'}${d.phone ? ` · ${esc(d.phone)}` : ""}${d.providers.length ? ` · ${d.providers.map(esc).join(", ")}` : ""}</p>
+        ${d.suspended ? '<span class="pill rejected">Compte suspendu</span>' : ""}</div></div>
+      ${d.role === "admin" ? '<p class="hint">Les administrateurs se gèrent via la variable ADMIN_EMAILS.</p>' : `<div class="row-actions">
+        <button class="btn ${d.suspended ? "" : "danger"} sm" data-usr="suspend" data-id="${d.id}" data-on="${d.suspended ? 0 : 1}">${d.suspended ? "Rétablir le compte" : "Suspendre le compte"}</button>
+        ${d.role === "host" ? `<button class="btn soft sm" data-usr="verify" data-id="${d.id}" data-on="${d.verified ? 0 : 1}">${d.verified ? "Retirer le badge vérifié" : "Accorder le badge vérifié"}</button>` : ""}
+        <button class="btn ghost sm" data-usr="moderator" data-id="${d.id}" data-on="${d.moderator ? 0 : 1}">${d.moderator ? "Retirer le rôle de modérateur" : "Nommer modérateur"}</button></div>`}
+      <div class="tiles" style="margin-top:18px">${[["list", "Annonces", d.listings.length], ["chat", "Discussions", d.stats.conversations], ["send", "Messages envoyés", d.stats.messages],
+        ["star", "Note d'hôte", d.host_rating_count ? (d.host_rating_sum / d.host_rating_count).toFixed(1) + " / 5" : "—"], ["alert", "Signalements reçus", d.reports.length]].map(([i, l, n]) => `<div class="tile">${ic(i, 18)}<b>${n}</b><span>${l}</span></div>`).join("")}</div>
+      ${d.listings.length ? `<h2 class="chart-t">Annonces</h2><div class="table-wrap"><table class="tbl"><thead><tr><th>Annonce</th><th>Prix</th><th>Statut</th><th>Risque</th><th>Créée</th></tr></thead><tbody>${d.listings.map(l => `<tr><td><a href="#/listing/${l.id}">${esc(l.title)}</a><br><span class="hint">${esc(l.commune)}</span></td><td>${money(l)}</td><td><span class="pill ${esc(l.status)}">${esc(l.status)}</span></td><td>${l.risk_score}</td><td>${when(l.created_at)}</td></tr>`).join("")}</tbody></table></div>` : ""}
+      ${d.reports.length ? `<h2 class="chart-t">Signalements reçus</h2><ul class="slot-list">${d.reports.map(x => `<li><span><b>${esc(x.category)}</b> — ${esc(x.reason)} <span class="hint">par ${esc(x.reporter)}, ${when(x.at)}</span></span><span class="pill">${esc(x.status)}</span></li>`).join("")}</ul>` : ""}
+      ${d.kyc.length ? `<h2 class="chart-t">Vérifications d'identité</h2><ul class="slot-list">${d.kyc.map(k => `<li><span>${when(k.at)} · ${esc(k.id_type)}${k.note ? ` — ${esc(k.note)}` : ""}</span><span class="pill ${k.status === "approved" ? "active" : k.status === "pending" ? "pending" : "rejected"}">${esc(k.status)}</span></li>`).join("")}</ul>` : ""}
+      <h2 class="chart-t">Historique</h2>${eventTable(d.events)}`;
+  } else if (tab === "accounts") {
+    const q = params.q || "", f = params.filter || "all";
+    const filters = [["all", "Tous"], ["host", "Hôtes"], ["client", "Clients"], ["verified", "Vérifiés"], ["moderator", "Modérateurs"], ["reported", "Signalés"], ["suspended", "Suspendus"], ["admin", "Administrateurs"]];
+    box.innerHTML = `<form class="adm-search" id="asf"><input name="q" value="${esc(q)}" placeholder="Nom, e-mail, téléphone ou n°" aria-label="Rechercher un utilisateur">
+        <select name="filter" aria-label="Filtre">${filters.map(([k, l]) => `<option value="${k}" ${k === f ? "selected" : ""}>${l}</option>`).join("")}</select><button class="btn sm">${ic("search", 15)} Rechercher</button></form><div id="ul">${SK.rows(5)}</div>`;
+    $("#asf").onsubmit = e => { e.preventDefault(); const d = Object.fromEntries(new FormData(e.target)); go(`#/admin?tab=accounts&q=${encodeURIComponent(d.q)}&filter=${d.filter}`); };
+    let offset = 0;
+    const page = async () => {
+      const r = await api(`/api/admin/users?q=${encodeURIComponent(q)}&filter=${f}&offset=${offset}`);
+      const rows = r.items.map(x => `<tr><td>${avatar(x.avatar, x.name)}</td><td><a href="#/admin?tab=accounts&id=${x.id}"><b>${esc(x.name)}</b></a><br><span class="hint">${esc(x.email)}</span></td>
+        <td>${x.role === "admin" ? "Admin" : x.role === "host" ? "Hôte" : "Client"}${x.moderator ? " · modo" : ""}${x.verified ? " " + verifiedTick : ""}</td><td>${x.listings}</td>
+        <td>${x.reports ? `<span class="pill rejected">${x.reports}</span>` : "0"}</td><td>${x.suspended ? '<span class="pill rejected">suspendu</span>' : '<span class="pill active">actif</span>'}</td><td>${when(x.created_at)}</td></tr>`).join("");
+      if (!offset) $("#ul").innerHTML = r.items.length ? `<div class="table-wrap"><table class="tbl"><thead><tr><th></th><th>Utilisateur</th><th>Rôle</th><th>Annonces</th><th>Signalé</th><th>État</th><th>Inscrit</th></tr></thead><tbody id="ub">${rows}</tbody></table></div><div class="more" id="um"></div>` : '<div class="empty"><h3>Aucun utilisateur trouvé</h3></div>';
+      else $("#ub").insertAdjacentHTML("beforeend", rows);
+      offset += r.items.length;
+      const m = $("#um"); if (m) m.innerHTML = r.more ? '<button class="btn ghost" id="umb">Afficher plus</button>' : "";
+      $("#umb") && ($("#umb").onclick = page);
+    };
+    await page();
+  } else if (tab === "logs") {
+    const ev = params.event || "";
+    box.innerHTML = `<form class="adm-search" id="lgf"><select name="event" aria-label="Type d'événement"><option value="">Tous les événements</option>${Object.entries(EVENT_LABEL).map(([k, l]) => `<option value="${k}" ${k === ev ? "selected" : ""}>${esc(l)}</option>`).join("")}</select><button class="btn sm">Filtrer</button></form><div id="lg">${SK.rows(6)}</div>`;
+    $("#lgf").onsubmit = e => { e.preventDefault(); go(`#/admin?tab=logs&event=${encodeURIComponent(e.target.event.value)}`); };
+    let before = "";
+    const page = async () => {
+      const r = await api(`/api/admin/logs?event=${encodeURIComponent(ev)}${before ? `&before=${before}` : ""}`);
+      const html = eventTable(r.items, true);
+      if (!before) $("#lg").innerHTML = html + '<div class="more" id="lm"></div>'; else $("#lm").insertAdjacentHTML("beforebegin", html);
+      if (r.items.length) before = r.items[r.items.length - 1].id;
+      $("#lm").innerHTML = r.more ? '<button class="btn ghost" id="lmb">Plus ancien</button>' : "";
+      $("#lmb") && ($("#lmb").onclick = page);
+    };
+    await page();
+  } else if (tab === "queue") {
     const r = await api("/api/admin/queue");
-    box.innerHTML = `<div class="notice ok"><b>Annonces de démonstration</b> — importe des annonces illustrées par de vraies photos de maisons de RDC (Wikimedia Commons, licences libres, crédits affichés). Elles arrivent ici : vérifiez chaque photo avant d'approuver.
-      <div class="row-actions" style="margin-top:10px"><button class="btn sm" data-demo="commons">Importer (photos réelles)</button><span class="hint" id="demoSt"></span></div></div>
-      ${r.items.map(l => `<div class="block-sec"><div class="row-actions" style="align-items:flex-start;justify-content:space-between"><div style="display:flex;gap:14px">${safeUrl(l.cover) ? `<img class="thumb" src="${esc(safeUrl(l.cover))}" alt="">` : ""}<div><a href="#/listing/${l.id}"><b>${esc(l.title)}</b></a>${l.is_demo ? ' <span class="pill">Démo</span>' : ""}<br><span class="hint">Hôte : ${esc(l.host)} ${l.host_verified ? verifiedTick : `<button class="linkish" data-verify="${l.host_id}">vérifier l'hôte</button>`} · ${money(l)} · ${esc(l.commune)}</span>
+    box.innerHTML = `${isAdmin() ? `<div class="notice ok"><b>Annonces de démonstration</b> — importe des annonces illustrées par de vraies photos de maisons de RDC (Wikimedia Commons, licences libres, crédits affichés). Elles arrivent ici : vérifiez chaque photo avant d'approuver.
+      <div class="row-actions" style="margin-top:10px"><button class="btn sm" data-demo="commons">Importer (photos réelles)</button><span class="hint" id="demoSt"></span></div></div>` : ""}
+      ${r.items.map(l => `<div class="block-sec"><div class="row-actions" style="align-items:flex-start;justify-content:space-between"><div style="display:flex;gap:14px">${safeUrl(l.cover) ? `<img class="thumb" src="${esc(safeUrl(l.cover))}" alt="">` : ""}<div><a href="#/listing/${l.id}"><b>${esc(l.title)}</b></a>${l.is_demo ? ' <span class="pill">Démo</span>' : ""}<br><span class="hint">Hôte : ${esc(l.host)} ${l.host_verified ? verifiedTick : isAdmin() ? `<button class="linkish" data-verify="${l.host_id}">vérifier l'hôte</button>` : ""} · ${money(l)} · ${esc(l.commune)}</span>
         ${l.risk_reasons.length || l.reports.length ? `<div class="risk" style="margin-top:8px"><b>Risque ${l.risk_score}</b><ul style="margin:4px 0 0">${l.risk_reasons.map(x => `<li>${esc(x)}</li>`).join("")}${l.reports.map(x => `<li>Signalement : ${esc(x)}</li>`).join("")}</ul></div>` : ""}</div></div>
         <div class="row-actions"><button class="btn sm" data-decide="approve" data-id="${l.id}">Approuver</button><button class="btn danger sm" data-decide="reject" data-id="${l.id}">Rejeter</button></div></div></div>`).join("") || '<div class="empty"><h3>${ic("checkc", 22)} File vide</h3></div>'}`;
   } else if (tab === "kyc") {
@@ -1022,6 +1107,13 @@ async function admin(tab) {
     $("#op").onchange = async e => { const cs = e.target.value ? (await children(+e.target.value)).filter(p => p.kind === "city") : []; $("#oc").innerHTML = '<option value="">Choisir…</option>' + cs.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join(""); $("#oc").disabled = !cs.length; city = null; showCov(); };
     $("#oc").onchange = e => { city = +e.target.value || null; showCov(); };
   }
+}
+function eventTable(items, withUser) {
+  if (!items.length) return '<p class="hint">Aucun événement.</p>';
+  const detail = d => Object.entries(d || {}).filter(([k]) => !["ua"].includes(k)).map(([k, v]) => `${esc(k)}=${esc(typeof v === "object" ? JSON.stringify(v) : v)}`).join(" · ");
+  return `<div class="table-wrap"><table class="tbl logs"><thead><tr><th>Date</th><th>Événement</th>${withUser ? "<th>Par</th>" : ""}<th>Détail</th><th>IP</th></tr></thead><tbody>${items.map(e => `<tr>
+    <td>${when(e.at)} ${hour(e.at)}</td><td>${esc(EVENT_LABEL[e.event] || e.event)}</td>${withUser ? `<td>${e.user_id ? `<a href="#/admin?tab=accounts&id=${e.user_id}">${esc(e.user_name || "#" + e.user_id)}</a>` : "—"}</td>` : ""}
+    <td class="hint">${detail(e.detail)}</td><td class="hint">${esc(e.ip)}</td></tr>`).join("")}</tbody></table></div>`;
 }
 async function runDemo(source, btn) {
   btn.disabled = true; const st = $("#demoSt"); let n = 0;
@@ -1225,7 +1317,8 @@ async function phoneModal() {
     catch (x) { $("#phErr").textContent = x.message; }
   };
 }
-const NOTIF_ICON = { message: "chat", alert: "bell", visit: "cal", kyc: "shield", review: "star", listing: "home" };
+const NOTIF_ICON = { message: "chat", alert: "bell", visit: "cal", kyc: "shield", review: "star", listing: "home", account: "user",
+  mod_listing: "shield", mod_report: "flag", mod_user: "alert", mod_kyc: "idcard" };
 async function notificationsPage() {
   if (!state.user) throw Object.assign(new Error("Connexion requise"), { status: 401 });
   $("#view").innerHTML = `<div class="wrap page" style="max-width:720px"><h1>Notifications</h1><div id="nl">${SK.rows(5)}</div></div>`;
@@ -1360,6 +1453,15 @@ document.addEventListener("click", async e => {
   const rc = t.closest("[data-rclose]"); if (rc) return act(`/api/admin/reports/${rc.dataset.id}/close`, { action: rc.dataset.rclose });
   const sus = t.closest("[data-suspend]"); if (sus && confirm("Suspendre ce compte ? Ses sessions sont coupées et ses annonces masquées.")) return act(`/api/admin/users/${sus.dataset.suspend}/suspend`, { suspend: true }, "Compte suspendu.");
   const ud = t.closest("[data-udismiss]"); if (ud) return act(`/api/admin/user-reports/${ud.dataset.udismiss}/dismiss`, undefined);
+  const us = t.closest("[data-usr]");
+  if (us) {
+    const on = us.dataset.on === "1", kind = us.dataset.usr, id = us.dataset.id;
+    const ask = { suspend: on ? "Suspendre ce compte ? Ses sessions sont coupées et ses annonces masquées." : "Rétablir ce compte ?",
+      verify: on ? "Accorder le badge « Hôte vérifié » ?" : "Retirer le badge « Hôte vérifié » ?", moderator: on ? "Nommer cette personne modératrice ? Elle pourra traiter annonces, signalements et lieux." : "Retirer le rôle de modérateur ?" }[kind];
+    if (!confirm(ask)) return;
+    const body = { suspend: { suspend: on }, verify: { verified: on }, moderator: { moderator: on } }[kind];
+    return act(`/api/admin/users/${id}/${kind}`, body, "Modification enregistrée.");
+  }
   const pl = t.closest("[data-place]"); if (pl) { placeCache.clear(); return act(`/api/admin/places/${pl.dataset.id}/decision`, { action: pl.dataset.place }); }
   if (t.closest("[data-need]") && !state.user) { e.preventDefault(); authModal("signup", "host"); }
 });

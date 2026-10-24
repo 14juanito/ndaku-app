@@ -201,4 +201,6 @@ def report_user(cid):
                (u["id"], target, cid, category, reason or USER_REPORT_CATEGORIES[category])):
         abort(409, "Vous avez déjà signalé cet utilisateur.")
     run("UPDATE conversations SET blocked_by=COALESCE(blocked_by, %s) WHERE id=%s", (u["id"], cid))
+    from .staff import notify_staff
+    notify_staff("mod_user", "Utilisateur signalé dans une discussion", USER_REPORT_CATEGORIES[category], "#/admin?tab=users")
     return jsonify(ok=True)

@@ -128,7 +128,8 @@ def require(*roles, verified_email=False, avatar=False):
             u = current_user()
             if not u:
                 abort(401, "Connexion requise.")
-            if roles and u["role"] not in roles:
+            # « moderator » : rôle supplémentaire accordé par un administrateur, cumulable avec client/hôte.
+            if roles and u["role"] not in roles and not ("moderator" in roles and u["moderator"]):
                 abort(403, "Action réservée à un autre type de compte.")
             if verified_email and cfg().REQUIRE_EMAIL_VERIFICATION and not u["email_verified"]:
                 abort(403, "Confirmez d'abord votre adresse e-mail.")

@@ -180,7 +180,7 @@ def get_listing(lid):
     r = one(f"{BASE_SQL} WHERE l.id = %s", (lid,))
     if not r:
         abort(404, "Annonce introuvable.")
-    is_staff = bool(u and (u["role"] == "admin" or u["id"] == r["owner_id"]))
+    is_staff = bool(u and (u["role"] == "admin" or u["moderator"] or u["id"] == r["owner_id"]))
     if (r["status"] != "active" or one("SELECT 1 FROM users WHERE id=%s AND suspended_at IS NOT NULL",
                                         (r["owner_id"],))) and not is_staff:
         abort(404, "Annonce introuvable.")
@@ -458,6 +458,9 @@ def create_listing():
     if status == "active":
         from .services import match_alerts
         match_alerts(row["id"])
+    else:
+        from .staff import notify_staff
+        notify_staff("mod_listing", "Annonce en attente de vérification", data["title"], "#/admin?tab=queue")
     return jsonify(id=row["id"], status=status, reasons=reasons), 201
 
 
@@ -503,7 +506,7 @@ def my_listings():
 
 # -------------------------------------------------------------- favoris / avis / signalements
 def active_or_404(lid):
-    r = one(f"SELECT l.id, l.owner_id FROM listings l JOIN users u ON u.id=l.owner_id WHERE l.id=%s AND {VISIBLE}", (lid,))
+    r = one(f"SELECT l.id, l.owner_id, l.title FROM listings l JOIN users u ON u.id=l.owner_id WHERE l.id=%s AND {VISIBLE}", (lid,))
     if not r:
         abort(404, "Annonce introuvable.")
     return r
@@ -617,4 +620,7 @@ def report(lid):
         run("""UPDATE listings SET status='pending', risk_score=risk_score+50,
                  risk_reasons = risk_reasons || %s::jsonb WHERE id=%s""",
             (json.dumps([f"{n} signalements d'utilisateurs"]), lid))
+        if n == REPORTS_TO_HIDE:
+            from .staff import notify_staff
+            notify_staff("mod_report", f"Annonce masquée après {n} signalements", r["title"], "#/admin?tab=reports")
     return jsonify(ok=True)

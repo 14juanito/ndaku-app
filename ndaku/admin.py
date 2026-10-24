@@ -15,7 +15,7 @@ bp = Blueprint("admin", __name__, url_prefix="/api")
 
 
 @bp.get("/admin/queue")
-@require("admin")
+@require("admin", "moderator")
 def queue():
     rows = all_(f"{BASE_SQL} WHERE l.status='pending' ORDER BY l.risk_score DESC LIMIT 100")
     reports = {}
@@ -28,7 +28,7 @@ def queue():
 
 
 @bp.post("/admin/listings/<int:lid>/decision")
-@require("admin")
+@require("admin", "moderator")
 def decide(lid):
     act = body().get("action")
     if act not in ("approve", "reject"):
@@ -52,9 +52,11 @@ def decide(lid):
 @bp.post("/admin/users/<int:uid>/verify")
 @require("admin")
 def verify_user(uid):
-    if not one("UPDATE users SET verified=TRUE WHERE id=%s RETURNING id", (uid,)):
+    """Accorde ou retire le badge « hôte vérifié »."""
+    on = (request.get_json(silent=True) or {}).get("verified") is not False
+    if not one("UPDATE users SET verified=%s WHERE id=%s RETURNING id", (on, uid)):
         abort(404, "Utilisateur introuvable.")
-    audit("host_verified", current_user()["id"], target=uid)
+    audit("host_verified" if on else "host_unverified", current_user()["id"], target=uid)
     return jsonify(ok=True)
 
 
@@ -95,7 +97,7 @@ def demo_import():
 
 
 @bp.get("/admin/reports")
-@require("admin")
+@require("admin", "moderator")
 def listing_reports():
     """Signalements ouverts sur des annonces (y compris encore en ligne), regroupés par annonce."""
     rows = all_("""SELECT r.listing_id, l.title, l.status, l.owner_id, u.name AS host, COUNT(*)::int AS n,
@@ -107,7 +109,7 @@ def listing_reports():
 
 
 @bp.post("/admin/reports/<int:lid>/close")
-@require("admin")
+@require("admin", "moderator")
 def close_reports(lid):
     act = body().get("action")
     if act not in ("dismiss", "hide"):
@@ -121,7 +123,7 @@ def close_reports(lid):
 
 
 @bp.get("/admin/user-reports")
-@require("admin")
+@require("admin", "moderator")
 def user_reports():
     """Utilisateurs signalés depuis la messagerie : la modération ne voit que les conversations signalées."""
     rows = all_("""SELECT ur.id, ur.category, ur.reason, extract(epoch FROM ur.created_at)::float8 AS at,
@@ -137,12 +139,15 @@ def user_reports():
 
 
 @bp.post("/admin/users/<int:uid>/suspend")
-@require("admin")
+@require("admin", "moderator")
 def suspend(uid):
     """Suspend (ou rétablit) un compte : sessions coupées, annonces masquées, signalements clos."""
     on = body().get("suspend") is not False
-    if uid == current_user()["id"]:
+    me = current_user()
+    if uid == me["id"]:
         abort(400, "Vous ne pouvez pas vous suspendre vous-même.")
+    if me["role"] != "admin" and one("SELECT 1 FROM users WHERE id=%s AND moderator", (uid,)):
+        abort(403, "Seul un administrateur peut suspendre un modérateur.")
     if not one("UPDATE users SET suspended_at = CASE WHEN %s THEN now() END WHERE id=%s AND role<>'admin' RETURNING id",
                (on, uid)):
         abort(404, "Utilisateur introuvable.")
@@ -154,7 +159,7 @@ def suspend(uid):
 
 
 @bp.post("/admin/user-reports/<int:rid>/dismiss")
-@require("admin")
+@require("admin", "moderator")
 def dismiss_user_report(rid):
     if not one("UPDATE user_reports SET status='dismissed' WHERE id=%s AND status='open' RETURNING id", (rid,)):
         abort(404, "Signalement introuvable.")

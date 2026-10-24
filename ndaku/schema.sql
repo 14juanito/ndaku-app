@@ -378,3 +378,10 @@ CREATE TABLE IF NOT EXISTS host_reviews (
 -- ============================================================ v6 : avis modifiables
 ALTER TABLE reviews ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ;
 ALTER TABLE host_reviews ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ;
+
+-- ============================================================ v7 : modérateurs et journal
+-- Modérateur : un client/hôte à qui l'administrateur confie la modération (annonces, signalements, lieux),
+-- sans accès aux pièces d'identité, au journal ni à la gestion des comptes.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS moderator BOOLEAN NOT NULL DEFAULT FALSE;
+CREATE INDEX IF NOT EXISTS ix_events_time ON security_events (created_at DESC);
+CREATE INDEX IF NOT EXISTS ix_events_user ON security_events (user_id, created_at DESC);

@@ -352,6 +352,8 @@ def submit_verification():
     run("INSERT INTO id_verifications (user_id, id_type, id_doc, selfie) VALUES (%s,%s,%s,%s)",
         (u["id"], id_type, id_doc, selfie))
     audit("kyc_submitted", u["id"])
+    from .staff import notify_staff
+    notify_staff("mod_kyc", "Nouvelle vérification d'identité à examiner", u["name"], "#/admin?tab=kyc", admins_only=True)
     return jsonify(ok=True), 201
 
 
