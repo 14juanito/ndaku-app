@@ -11,6 +11,7 @@ import re
 import time
 import urllib.parse
 import urllib.request
+import zlib
 
 from PIL import Image, ImageDraw, ImageFilter
 
@@ -61,6 +62,50 @@ AMS = [["Eau courante", "Électricité", "Parking", "Gardien", "Internet"],
        ["Eau courante", "Groupe électrogène", "Clôture", "Citerne", "Jardin"],
        ["Électricité", "Climatisation", "Cuisine équipée", "Panneaux solaires", "Parking"]]
 PHOTOS_PER_LISTING = 3
+
+# Professionnels de démonstration (noms fictifs, marqués « démo », adresses e-mail non routables).
+DEMO_AGENCIES = {
+    "kpi": {"name": "Kin Prestige Immobilier (démo)", "city": "Kinshasa", "color": (242, 97, 34),
+            "description": "Agence de démonstration : location et vente de villas et appartements à Gombe, Ngaliema et "
+                           "Limete. Visites accompagnées, état des lieux contradictoire, aucun frais avant visite.",
+            "address": "Boulevard du 30 Juin (adresse fictive), Gombe", "phone": "+243 000 000 001",
+            "team": [("Sarah N. (démo)", "manager", "Gérante"), ("Didier K. (démo)", "agent", "Agent senior"),
+                     ("Ruth M. (démo)", "agent", "Agente location")]},
+    "kh": {"name": "Katanga Habitat (démo)", "city": "Lubumbashi", "color": (24, 112, 140),
+           "description": "Agence de démonstration à Lubumbashi : maisons familiales et parcelles clôturées au Golf, "
+                          "à Kampemba et à Kenya. Gestion locative pour propriétaires.",
+           "address": "Avenue Lumumba (adresse fictive), Lubumbashi", "phone": "+243 000 000 002",
+           "team": [("Joseph T. (démo)", "manager", "Gérant"), ("Esther B. (démo)", "agent", "Agente")]},
+    "km": {"name": "Kivu Maisons (démo)", "city": "Goma", "color": (46, 125, 50),
+           "description": "Agence de démonstration à Goma : villas avec vue sur le lac Kivu et maisons familiales.",
+           "address": "Avenue du Lac (adresse fictive), Goma", "phone": "+243 000 000 003",
+           "team": [("Aline M. (démo)", "manager", "Gérante")]},
+}
+DEMO_AGENTS = {"ind1": ("Christian L. (démo)", "Agent indépendant depuis 8 ans à Kinshasa (Kintambo, Bandalungwa, Lingwala). "
+                                              "Je visite chaque bien avant de le publier."),
+               "ind2": ("Nadège O. (démo)", "Agente indépendante : studios et appartements meublés pour étudiants "
+                                            "et jeunes actifs à Lemba et Ngaba.")}
+DEMO_CLIENTS = ["Patience K. (démo)", "Merveille T. (démo)", "Gédéon B. (démo)"]
+# (ville, commune, offre, type, titre, prix, ch., sdb, m², meublé, adresse, professionnel, mandat, honoraires, en avant)
+PRO_LISTINGS = [
+    ("Kinshasa", "Gombe", "location", "appartement", "Penthouse meublé avec terrasse au centre-ville", 2800, 3, 3, 190, 1, "Avenue des Aviateurs 7", "kpi/1", "exclusif", "1 mois de loyer", True),
+    ("Kinshasa", "Ngaliema", "vente", "villa", "Villa contemporaine 5 chambres, titre foncier", 320000, 5, 5, 520, 0, "Avenue Pumbu 33", "kpi/0", "exclusif", "3 % du prix de vente", True),
+    ("Kinshasa", "Limete", "location", "maison", "Maison 3 chambres sécurisée, quartier résidentiel", 950, 3, 2, 210, 0, "10e rue Limete Résidentiel 4", "kpi/2", "simple", "1 mois de loyer", False),
+    ("Kinshasa", "Gombe", "location", "appartement", "Appartement 2 chambres, immeuble avec groupe électrogène", 1400, 2, 2, 110, 1, "Avenue Kalemie 21", "kpi/2", "simple", "1 mois de loyer", False),
+    ("Lubumbashi", "Kampemba", "location", "maison", "Maison familiale avec grande cour à Kampemba", 700, 4, 2, 240, 0, "Avenue des Chutes 15", "kh/0", "exclusif", "1 mois de loyer", True),
+    ("Lubumbashi", "Kenya", "vente", "terrain", "Parcelle clôturée 30 x 40 avec titre", 45000, 0, 0, 1200, 0, "Avenue Kilela 8", "kh/1", "simple", "5 % du prix de vente", False),
+    ("Lubumbashi", "Lubumbashi", "location", "villa", "Villa au quartier Golf avec piscine", 2600, 5, 4, 450, 1, "Avenue Mama Yemo 40", "kh/1", "exclusif", "1 mois de loyer", False),
+    ("Goma", "Goma", "location", "maison", "Maison 3 chambres à deux pas du lac", 800, 3, 2, 180, 0, "Avenue Kituku 6", "km/0", "simple", "1 mois de loyer", True),
+    ("Goma", "Karisimbi", "vente", "villa", "Villa avec jardin et vue sur le Nyiragongo", 135000, 4, 3, 350, 0, "Avenue de la Paix 18", "km/0", "exclusif", "3 % du prix de vente", False),
+    ("Kinshasa", "Kintambo", "location", "maison", "Maison 4 chambres avec parking pour 2 voitures", 1100, 4, 3, 260, 0, "Avenue Nguma 12", "ind1", "proprietaire", "Aucun", True),
+    ("Kinshasa", "Bandalungwa", "location", "appartement", "Appartement 2 chambres refait à neuf", 480, 2, 1, 85, 0, "Avenue Lubudi 26", "ind1", "simple", "1 mois de loyer", False),
+    ("Kinshasa", "Lemba", "location", "studio", "Studio meublé près de l'université", 250, 1, 1, 30, 1, "Avenue By-pass 41", "ind2", "simple", "50 % du premier loyer", True),
+    ("Kinshasa", "Ngaba", "location", "appartement", "Appartement meublé pour colocation étudiante", 420, 2, 1, 70, 1, "Avenue Mbuji-Mayi 9", "ind2", "simple", "1 mois de loyer", False),
+]
+REVIEWS = [(5, "Agent très professionnel, la maison correspondait exactement aux photos."),
+           (4, "Visite à l'heure et bien organisée. Bon suivi après la visite."),
+           (5, "Rien à payer avant la visite, tout s'est passé par la messagerie Ndaku. Je recommande."),
+           (3, "Bien conforme mais réponses un peu lentes au début.")]
 
 
 # ---------------------------------------------------------------- Wikimedia Commons
@@ -154,6 +199,117 @@ def render_house(seed, w=1200, h=800):
     return img
 
 
+# -------------------------------------------------------------- portraits et logos
+def render_avatar(seed, size=400):
+    """Portrait illustré (pas une vraie personne) : fond, visage, cheveux, vêtement."""
+    r = random.Random(seed)
+    img = Image.new("RGB", (size, size), tuple(r.randint(150, 235) for _ in range(3)))
+    d = ImageDraw.Draw(img)
+    skin = r.choice([(92, 58, 38), (120, 78, 50), (141, 94, 62), (166, 115, 78), (78, 50, 34)])
+    cloth = tuple(r.randint(20, 200) for _ in range(3))
+    d.ellipse([size * .12, size * .66, size * .88, size * 1.3], fill=cloth)
+    d.rectangle([size * .42, size * .55, size * .58, size * .72], fill=skin)
+    d.ellipse([size * .28, size * .18, size * .72, size * .66], fill=skin)
+    hair = (r.randint(10, 40),) * 3
+    if r.random() < .5:
+        d.chord([size * .26, size * .12, size * .74, size * .5], 180, 360, fill=hair)
+    else:
+        d.ellipse([size * .24, size * .1, size * .76, size * .42], fill=hair)
+        d.rectangle([size * .24, size * .26, size * .3, size * .5], fill=hair)
+        d.rectangle([size * .7, size * .26, size * .76, size * .5], fill=hair)
+    for ex in (.41, .59):
+        d.ellipse([size * (ex - .025), size * .4, size * (ex + .025), size * .45], fill=(25, 20, 20))
+    d.arc([size * .43, size * .48, size * .57, size * .57], 20, 160, fill=(60, 30, 30), width=max(2, size // 100))
+    return img
+
+
+def render_logo(name, color, size=400):
+    """Logo fictif : carré arrondi coloré, maison stylisée et initiales."""
+    img = Image.new("RGB", (size, size), (255, 255, 255))
+    d = ImageDraw.Draw(img)
+    d.rounded_rectangle([20, 20, size - 20, size - 20], radius=70, fill=color)
+    w = size
+    d.polygon([(w * .25, w * .48), (w * .5, w * .24), (w * .75, w * .48)], fill=(255, 255, 255))
+    d.rectangle([w * .32, w * .46, w * .68, w * .7], fill=(255, 255, 255))
+    d.rectangle([w * .45, w * .56, w * .55, w * .7], fill=color)
+    initials = "".join(p[0] for p in re.sub(r"\(.*?\)", "", name).split()[:3]).upper()
+    try:
+        from PIL import ImageFont
+        font = ImageFont.load_default(size=int(w * .13))
+    except (TypeError, OSError):
+        font = None
+    d.text((w * .5, w * .82), initials, fill=(255, 255, 255), anchor="mm", font=font)
+    return img
+
+
+def _put_image(storage, img):
+    try:
+        return storage.put(af.to_jpeg(img), folder="avatars")
+    except Exception:  # noqa: BLE001 — stockage indisponible : la démo reste utilisable sans image
+        return None, None
+
+
+def _demo_user(storage, name, email, role, seed, **extra):
+    u = one("SELECT id, avatar_url FROM users WHERE email=%s", (email,))
+    if not u:
+        u = one(f"""INSERT INTO users (name, email, email_verified, role, verified{''.join(', ' + k for k in extra)})
+                    VALUES (%s,%s,TRUE,%s,TRUE{', %s' * len(extra)}) RETURNING id, avatar_url""",
+                (name, email, role, *extra.values()))
+    if not u["avatar_url"]:
+        url, key = _put_image(storage, render_avatar(seed))
+        if url:
+            run("UPDATE users SET avatar_url=%s, avatar_key=%s WHERE id=%s", (url, key, u["id"]))
+    return u["id"]
+
+
+def ensure_demo_pros(storage):
+    """Agences, agents et clients de démonstration (idempotent). Renvoie {clé: (id utilisateur, id agence)}."""
+    out = {}
+    for key, a in DEMO_AGENCIES.items():
+        ag = one("SELECT id, logo_url FROM agencies WHERE slug=%s", (f"demo-{key}",))
+        if not ag:
+            ag = one("""INSERT INTO agencies (slug, name, description, phone, address, city, rccm, id_nat, docs_note, is_demo)
+                        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,TRUE) RETURNING id, logo_url""",
+                     (f"demo-{key}", a["name"], a["description"], a["phone"], a["address"], a["city"],
+                      f"DEMO-RCCM-{key.upper()}", f"DEMO-IDNAT-{key.upper()}", "Agence de démonstration (fictive)."))
+        if not ag["logo_url"]:
+            url, k = _put_image(storage, render_logo(a["name"], a["color"]))
+            if url:
+                run("UPDATE agencies SET logo_url=%s, logo_key=%s WHERE id=%s", (url, k, ag["id"]))
+        for i, (name, role, title) in enumerate(a["team"]):
+            uid = _demo_user(storage, name, f"agent-{key}-{i}@demo.ndaku.invalid", "agent", zlib.crc32(f"{key}{i}".encode()) % 10**6,
+                             bio=f"{title} chez {a['name']}.")
+            run("""INSERT INTO agency_members (agency_id, user_id, role, title) VALUES (%s,%s,%s,%s)
+                   ON CONFLICT DO NOTHING""", (ag["id"], uid, role, title))
+            out[f"{key}/{i}"] = (uid, ag["id"])
+    for key, (name, bio) in DEMO_AGENTS.items():
+        uid = _demo_user(storage, name, f"{key}@demo.ndaku.invalid", "agent", zlib.crc32(key.encode()) % 10**6, bio=bio,
+                         agent_status="approved")
+        out[key] = (uid, None)
+    for n in range(3):  # photos de profil des hôtes de démo existants
+        uid = demo_host(n)
+        if not one("SELECT avatar_url FROM users WHERE id=%s", (uid,))["avatar_url"]:
+            url, k = _put_image(storage, render_avatar(9000 + n))
+            if url:
+                run("UPDATE users SET avatar_url=%s, avatar_key=%s WHERE id=%s", (url, k, uid))
+    out["clients"] = [_demo_user(storage, name, f"client-demo-{i}@demo.ndaku.invalid", "client", 7000 + i)
+                      for i, name in enumerate(DEMO_CLIENTS)]
+    return out
+
+
+def _demo_reviews(lid, owner, clients, r):
+    """Quelques avis de démonstration (comptes clients de démo), compteurs tenus à jour."""
+    for cid in r.sample(clients, k=r.randint(1, 2)):
+        rating, comment = r.choice(REVIEWS)
+        if one("""INSERT INTO host_reviews (host_id, user_id, rating, comment) VALUES (%s,%s,%s,%s)
+                  ON CONFLICT DO NOTHING RETURNING id""", (owner, cid, rating, comment)):
+            run("UPDATE users SET host_rating_sum=host_rating_sum+%s, host_rating_count=host_rating_count+1 WHERE id=%s",
+                (rating, owner))
+        if one("""INSERT INTO reviews (listing_id, user_id, rating, comment) VALUES (%s,%s,%s,%s)
+                  ON CONFLICT DO NOTHING RETURNING id""", (lid, cid, rating, comment)):
+            run("UPDATE listings SET rating_sum=rating_sum+%s, rating_count=rating_count+1 WHERE id=%s", (rating, lid))
+
+
 # ------------------------------------------------------------------- création
 def _store_photo(owner_id, img, credit):
     try:
@@ -205,14 +361,17 @@ def create_demo(storage, source="illustrations", max_listings=4, status=None, bu
     status = status or ("pending" if source == "commons" else "active")
     deadline = time.monotonic() + budget_s
     existing = {r["title"] for r in all_("SELECT title FROM listings WHERE is_demo")}
-    todo = [x for x in LISTINGS if x[4] not in existing]
+    specs = [(*x, None, None, None, False) for x in LISTINGS] + list(PRO_LISTINGS)
+    todo = [x for x in specs if x[4] not in existing]
+    pros = ensure_demo_pros(storage)
+    db().commit()
     created, skipped, pool, attempted = [], [], {}, 0
-    for city, com, deal, pt, title, price, bed, bath, m2, furn, addr in todo:
+    for city, com, deal, pt, title, price, bed, bath, m2, furn, addr, pro, mandate, fee, featured in todo:
         if len(created) >= max_listings or time.monotonic() > deadline:
             break
         attempted += 1
-        idx = next(i for i, x in enumerate(LISTINGS) if x[4] == title)
-        owner = demo_host(idx % 3)
+        idx = next(i for i, x in enumerate(specs) if x[4] == title)
+        owner, agency_id = pros[pro] if pro else (demo_host(idx % 3), None)
         photo_ids = []
         if source == "commons":
             if city not in pool:
@@ -250,6 +409,10 @@ def create_demo(storage, source="illustrations", max_listings=4, status=None, bu
                                    r, status, photo_ids)
         for pos, pid in enumerate(photo_ids):
             run("UPDATE images SET listing_id=%s, position=%s WHERE id=%s", (lid, pos, pid))
+        if pro:
+            run("UPDATE listings SET agency_id=%s, mandate=%s, agency_fee=%s, featured=%s WHERE id=%s",
+                (agency_id, mandate, fee, featured, lid))
+        _demo_reviews(lid, owner, pros["clients"], r)
         db().commit()
         created.append(title)
     # Terminé quand toute la liste a été tentée dans cet appel (les échecs ne bloquent pas la suite).

@@ -84,7 +84,7 @@ const AMENITY_ICON = { "Eau courante": "drop", "Électricité": "bolt", "Groupe 
   "Gardien": "guard", "Climatisation": "snow", "Internet": "wifi", "Jardin": "tree", "Citerne": "tank", "Cuisine équipée": "pot", "Panneaux solaires": "sun" };
 const SCORE_WORD = n => n >= 10 ? "Excellent" : n >= 8 ? "Très bon" : n >= 6 ? "Bon" : n >= 4 ? "Moyen" : "Faible";
 const RATING_WORD = { 5: "Excellent", 4: "Très bien", 3: "Correct", 2: "Décevant", 1: "Mauvais" };
-const stars = n => `<span class="stars" aria-label="${n} sur 5">${[1, 2, 3, 4, 5].map(i => `<svg class="ic ${i <= n ? "full" : ""}" width="14" height="14" viewBox="0 0 24 24" aria-hidden="true">${P.star}</svg>`).join("")}</span>`;
+const stars = n => `<span class="stars" role="img" aria-label="${n} sur 5">${[1, 2, 3, 4, 5].map(i => `<svg class="ic ${i <= n ? "full" : ""}" width="14" height="14" viewBox="0 0 24 24" aria-hidden="true">${P.star}</svg>`).join("")}</span>`;
 const starPicker = (val = 0) => `<div class="star-pick" role="radiogroup" aria-label="Votre note">${[5, 4, 3, 2, 1].map(n =>
   `<input type="radio" name="rating" value="${n}" id="sp${n}" ${n === val ? "checked" : ""}><label for="sp${n}" title="${n} étoile${n > 1 ? "s" : ""} · ${RATING_WORD[n]}">${ic("star", 30)}</label>`).join("")}</div><span class="star-word hint">${val ? RATING_WORD[val] : "Touchez une étoile"}</span>`;
 function reviewForm(mine, label) {
@@ -170,7 +170,7 @@ function children(parentId) {
   return placeCache.get(k);
 }
 async function myPending(parentId) {
-  if (state.user?.role !== "host" || !parentId) return [];
+  if (!isPub(state.user) || !parentId) return [];
   return api(`/api/places/mine?parent_id=${parentId}`).then(r => r.items.map(p => ({ ...p, pending: true }))).catch(() => []);
 }
 const KINDS = ["province", "city", "commune", "quartier", "avenue"];
@@ -257,7 +257,7 @@ function renderHeader() {
       <button class="go" data-act="where" aria-label="Rechercher">${I.search}</button>
     </div>
     <div class="nav">
-      ${!u || u.role === "host" ? `<a class="link host-cta" href="${u ? "#/new" : "#/host"}" data-need="host">Mettre ma maison sur Ndaku</a>` : ""}
+      ${!u || isPub(u) ? `<a class="link host-cta" href="${u ? "#/new" : "#/host"}" data-need="host">${u?.role === "agent" ? "Publier un bien" : "Mettre ma maison sur Ndaku"}</a>` : ""}
       ${u ? `<a class="icon-btn bell-btn" href="#/notifications" aria-label="Notifications${u.notif_unread ? ` (${u.notif_unread} non lues)` : ""}">${ic("bell", 22)}${u.notif_unread ? `<span class="dot">${u.notif_unread > 9 ? "9+" : u.notif_unread}</span>` : ""}</a>` : ""}
       ${u ? `<a class="icon-btn msg-btn" href="#/messages" aria-label="Messages">${I.chat}${u.unread ? `<span class="dot">${u.unread}</span>` : ""}</a>` : ""}
       <button class="menu-btn" id="menuBtn" aria-haspopup="true" aria-label="Menu du compte">${I.burger}${u ? avatar(u.avatar, u.name) : `<span class="avatar">${ic("user", 18)}</span>`}</button>
@@ -277,12 +277,15 @@ function togglePop() {
   if ($(".pop")) return closePop();
   const u = state.user, p = document.createElement("div");
   p.className = "pop";
-  p.innerHTML = u ? `<div class="who">${esc(u.name)} · ${u.role === "host" ? "Hôte" : u.role === "admin" ? "Admin" : "Client"}${u.verified ? ` · ${verifiedTick} vérifié` : ""}</div>
+  p.innerHTML = u ? `<div class="who">${esc(u.name)} · ${esc(roleLabel(u))}${u.verified ? ` · ${verifiedTick}` : ""}</div>
       <a href="#/messages">Messages${u.unread ? ` (${u.unread})` : ""}</a><a href="#/notifications">Notifications${u.notif_unread ? ` (${u.notif_unread})` : ""}</a><a href="#/favorites">Favoris</a>
-      ${u.role === "host" ? `<a href="#/host">Mes annonces et statistiques</a><a href="#/new">Publier une annonce</a>${u.verified ? "" : '<a href="#/verification">Vérifier mon identité</a>'}` : ""}
+      ${u.agency ? `<a href="#/agence-pro">Espace agence</a>` : ""}
+      ${isPub(u) ? `<a href="#/host">Mes annonces et statistiques</a>${canPublish(u) ? '<a href="#/new">Publier une annonce</a>' : ""}${u.role === "host" && !u.verified ? '<a href="#/verification">Vérifier mon identité</a>' : ""}` : ""}
+      ${u.role === "agent" && !u.agency && u.agent_status !== "approved" ? '<a href="#/profile/agent">Mon dossier d\'agent</a>' : ""}
+      <a href="#/agences">Agences et agents</a>
       <a href="#/prix">Prix du marché</a>
       ${u.role === "admin" || u.moderator ? `<a href="#/admin">${u.role === "admin" ? "Administration" : "Modération"}</a>` : ""}<a href="#/profile">Paramètres</a><hr><button data-act="logout">Se déconnecter</button>`
-    : `<button data-act="login">Se connecter</button><button data-act="signup">S'inscrire</button><hr><button data-act="signup-host">Devenir hôte</button>`;
+    : `<button data-act="login">Se connecter</button><button data-act="signup">S'inscrire</button><hr><button data-act="signup-host">Devenir hôte</button><a href="#/agences">Agences et agents</a>`;
   document.body.append(p);
 }
 document.addEventListener("click", e => { if (!e.target.closest(".pop,#menuBtn")) closePop(); });
@@ -348,7 +351,8 @@ function authModal(mode = "login", role = "client") {
     <div class="tabs"><button class="${reg ? "" : "on"}" data-act="login">Connexion</button><button class="${reg ? "on" : ""}" data-act="signup">Inscription</button></div>
     <h2>Bienvenue sur Ndaku</h2>
     ${reg ? `<div class="seg-pick"><label><input type="radio" name="role" value="client" ${role === "client" ? "checked" : ""}><b>Client</b><span>Je cherche à louer ou acheter</span></label>
-      <label><input type="radio" name="role" value="host" ${role === "host" ? "checked" : ""}><b>Hôte</b><span>Je propose un bien</span></label></div>` : ""}
+      <label><input type="radio" name="role" value="host" ${role === "host" ? "checked" : ""}><b>Hôte</b><span>Je propose mon bien</span></label>
+      <label><input type="radio" name="role" value="agent" ${role === "agent" ? "checked" : ""}><b>Agent</b><span>Agent immobilier (dossier vérifié)</span></label></div>` : ""}
     <div class="social" id="social"><div id="g-btn" class="g-btn"></div>
       <button type="button" class="btn apple block" id="apple-btn"><svg width="16" height="18" viewBox="0 0 17 20" fill="currentColor" aria-hidden="true"><path d="M14.1 10.6c0-2.6 2.1-3.8 2.2-3.9-1.2-1.8-3.1-2-3.7-2-1.6-.2-3.1.9-3.9.9-.8 0-2-.9-3.4-.9C3.5 4.7 1.8 5.8.9 7.4c-1.9 3.3-.5 8.1 1.3 10.7.9 1.3 2 2.7 3.3 2.7 1.3-.1 1.8-.9 3.4-.9s2 .9 3.4.8c1.4 0 2.3-1.3 3.2-2.6 1-1.5 1.4-2.9 1.4-3-.1 0-2.8-1-2.8-4.1zM11.6 3c.7-.9 1.2-2 1.1-3.2-1 0-2.3.7-3 1.6-.7.7-1.2 2-1.1 3.1 1.1.1 2.3-.6 3-1.5z"/></svg> Continuer avec Apple (iCloud)</button>
       <div class="or"><span>ou avec votre e-mail</span></div></div>
@@ -372,6 +376,7 @@ function authModal(mode = "login", role = "client") {
       const r = await api(reg ? "/api/auth/register" : "/api/auth/login", { json: d });
       if (reg) { try { r.user.avatar = await uploadAvatar(getPhoto()); } catch (x) { toast("Compte créé, mais la photo n'a pas pu être envoyée : " + x.message); } }
       await afterLogin(r.user, reg && !r.user.email_verified && state.auth.email_verification ? "Compte créé ! Confirmez votre e-mail via le lien reçu." : null);
+      if (reg && r.user.role === "agent") go("#/profile/agent");
     } catch (err) { $("#authErr").textContent = err.message; btn.disabled = false; }
   };
 }
@@ -427,13 +432,16 @@ async function route() {
     let m;
     if ((m = path.match(/^\/listing\/(\d+)$/))) return await detail(+m[1]);
     if ((m = path.match(/^\/messages(?:\/(\d+))?$/))) return await messages(m[1] ? +m[1] : null);
-    if (path === "/host") return await dashboard();
+    if (path === "/host") return await dashboard(params);
     if (path === "/new") return await newListing();
     if (path === "/favorites") return await favorites();
-    if (path === "/profile") return await profile();
+    if ((m = path.match(/^\/profile(?:\/(\w+))?$/))) return await settings(m[1] || "");
     if (path === "/admin") return await admin(params.tab || "dash", params);
     if ((m = path.match(/^\/hote\/(\d+)$/))) return await hostPage(+m[1]);
     if (path === "/notifications") return await notificationsPage();
+    if (path === "/agences") return await agenciesDir(params);
+    if ((m = path.match(/^\/agence\/([a-z0-9-]{1,80})$/))) return await agencyPage(m[1], params);
+    if ((m = path.match(/^\/agence-pro(?:\/(\w+))?$/))) return await agencyPro(m[1] || "apercu", params);
     if (path === "/verification") return await kycPage();
     if (path === "/prix") return await pricesPage(params);
     if (path === "/verify") return await verifyPage(params);
@@ -457,7 +465,8 @@ function cardHtml(l, top) {
   return `<a class="card" href="#/listing/${l.id}" data-id="${l.id}">
     <div class="ph">${safeUrl(l.cover) ? `<img loading="lazy" decoding="async" src="${esc(safeUrl(l.cover))}" alt="${esc(l.title)}">` : ""}
       <button class="heart ${fav ? "on" : ""}" data-fav="${l.id}" aria-label="${fav ? "Retirer des" : "Ajouter aux"} favoris" aria-pressed="${fav}">${I.heart}</button>
-      ${l.is_demo ? '<span class="badge demo">Démo</span>' : top ? '<span class="badge">Coup de cœur</span>' : `<span class="badge deal">${l.deal === "location" ? "À louer" : "À vendre"}</span>`}</div>
+      ${l.is_demo ? '<span class="badge demo">Démo</span>' : l.featured ? `<span class="badge feat">${ic("star", 12)} En vedette</span>` : top ? '<span class="badge">Coup de cœur</span>' : `<span class="badge deal">${l.deal === "location" ? "À louer" : "À vendre"}</span>`}
+      ${l.agency ? `<span class="ag-chip">${agencyLogo(l.agency, "xs")}${esc(l.agency.name)}</span>` : l.pro ? `<span class="ag-chip">${ic("idcard", 13)} Agent vérifié</span>` : ""}</div>
     <div class="row"><b>${esc(loc)}</b><span class="rt">${l.rating ? I.star + Number(l.rating).toFixed(1) : "Nouveau"}</span></div>
     <div class="m">${esc(l.title)}</div>
     <div class="m">${l.ptype === "terrain" ? "Terrain" : cap(l.ptype) + " · " + l.bedrooms + " ch."} · ${l.surface} m²</div>
@@ -500,6 +509,7 @@ async function home() {
     } catch (e) { grid.innerHTML = errPage(e.message); } finally { loading = false; }
   }
   await page(true);
+  trackImpressions(grid);
   more.addEventListener("click", e => { if (e.target.id === "moreBtn") page(false); });
   const io = new IntersectionObserver(es => { if (es[0].isIntersecting && offset < total) page(false); }, { rootMargin: "600px" });
   io.observe(more); cleanup.push(() => io.disconnect());
@@ -580,7 +590,8 @@ async function detail(id) {
     <div class="gal n${n}" data-act="lightbox">${imgs.slice(0, 5).map((s, i) => `<img src="${esc(s)}" alt="Photo ${i + 1} : ${esc(l.title)}" data-i="${i}" ${i ? 'loading="lazy"' : ""}>`).join("")}</div>
     <div class="dt-body"><div>
       ${l.is_demo ? '<div class="notice warn" style="margin-top:16px">Annonce de <b>démonstration</b> : le bien n\'est pas réellement disponible.</div>' : ""}
-      <div class="block-sec"><a class="hostrow" href="#/hote/${l.host.id}">${avatar(l.host.avatar, l.host.name, "lg")}<div><h2 style="margin:0;font-size:18px">${cap(l.ptype)} ${l.deal === "location" ? "à louer" : "à vendre"} · hôte : ${esc(l.host.name)}</h2>
+      ${l.agency ? `<a class="agency-strip" href="#/agence/${esc(l.agency.slug)}">${agencyLogo(l.agency, "lg")}<span><small>Bien proposé par l'agence</small><b>${esc(l.agency.name)}</b> <span class="vtick">${ic("checkc", 15)}</span></span><span class="chev">${ic("back", 16)}</span></a>` : ""}
+      <div class="block-sec"><a class="hostrow" href="#/hote/${l.host.id}">${avatar(l.host.avatar, l.host.name, "lg")}<div><h2 style="margin:0;font-size:18px">${cap(l.ptype)} ${l.deal === "location" ? "à louer" : "à vendre"} · ${l.host.role === "agent" ? "agent" : "hôte"} : ${esc(l.host.name)}</h2>
         ${l.host.verified ? `<span class="verif">${ic("shield", 15)} Identité de l'hôte vérifiée par Ndaku</span>` : '<span class="unverif">Hôte non encore vérifié : ne payez rien avant la visite.</span>'}
         ${l.host.rating ? `<br><span class="hint">${stars(Math.round(l.host.rating))} ${Number(l.host.rating).toFixed(1)} · ${l.host.reviews_count} avis sur l'hôte</span>` : ""}</div></a>
         <div class="specs" style="margin-top:14px">${l.ptype === "terrain" ? "" : `<span>${ic("bed", 18)} ${l.bedrooms} chambre${l.bedrooms > 1 ? "s" : ""}</span><span>${ic("bath", 18)} ${l.bathrooms} salle${l.bathrooms > 1 ? "s" : ""} de bain</span>`}<span>${ic("area", 18)} ${l.surface} m²</span>${l.furnished ? `<span>${ic("sofa", 18)} Meublé</span>` : ""}${l.views != null ? `<span>${ic("eye", 18)} ${l.views} vue${l.views > 1 ? "s" : ""}</span>` : ""}</div></div>
@@ -600,7 +611,8 @@ async function detail(id) {
         ${l.can_review ? reviewForm(l.my_review, "sur ce bien") : '<p class="hint">Seuls les clients ayant échangé avec l\'hôte via Ndaku peuvent laisser un avis.</p>'}</div>
     </div>
     <aside><div class="panel"><div><div class="big">${esc("$" + fmt(l.price))}${l.deal === "location" ? " <small>/ mois</small>" : ""}</div>
-        <p class="hint hide-m" style="margin:6px 0 0">${esc(l.commune)}, ${esc(l.city)}</p></div>
+        <p class="hint hide-m" style="margin:6px 0 0">${esc(l.commune)}, ${esc(l.city)}</p>
+        ${l.agency_fee ? `<p class="fee"><b>Honoraires :</b> ${esc(l.agency_fee)}<span class="hide-m"> · ${esc(MANDATE_LABEL[l.mandate] || "")}</span></p>` : ""}</div>
       ${isOwner || isAdmin ? `<div class="hide-m"><p class="hint" style="margin-top:12px">Vous gérez cette annonce.</p>${isOwner && l.status === "active" ? `<button class="btn ghost block" data-close="${l.id}">Marquer comme ${l.deal === "location" ? "loué" : "vendu"}</button>` : ""}</div>`
         : l.conversation_id ? `<a class="btn" href="#/messages/${l.conversation_id}">Ouvrir la discussion</a>` : `<button class="btn" data-visit="${l.id}">Demander une visite</button>`}
       ${isOwner && l.status !== "rejected" ? `<button class="btn ghost block hide-m" style="margin-top:10px" data-slots="${l.id}">${ic("cal", 16)} Proposer des créneaux de visite</button>` : ""}
@@ -750,50 +762,116 @@ async function favorites() {
   $("#fv").innerHTML = r.items.length ? `<p class="sec-sub">${r.items.length} bien${r.items.length > 1 ? "s" : ""} enregistré${r.items.length > 1 ? "s" : ""}.</p><div class="grid">${r.items.map(l => cardHtml(l)).join("")}</div>`
     : '<div class="empty"><h3>Aucun favori</h3><p>Touchez le cœur d\'une annonce pour la retrouver ici, sur tous vos appareils — même sans connexion.</p><a class="btn" href="#/">Explorer</a></div>';
 }
-async function profile() {
+/* ============================================================================ paramètres */
+const isPub = u => !!u && (u.role === "host" || u.role === "agent");
+const canPublish = u => !!u && (u.role === "host" || (u.role === "agent" && (u.agency?.status === "active" || u.agent_status === "approved")));
+function roleLabel(u) {
+  if (u.role === "admin") return "Administrateur";
+  if (u.role === "host") return "Hôte";
+  if (u.role === "agent") return u.agency ? `${u.agency.role === "manager" ? "Gérant" : "Agent"} · ${u.agency.name}` : u.agent_status === "approved" ? "Agent immobilier indépendant" : "Agent immobilier (dossier à valider)";
+  return "Client";
+}
+function settingsMenu(u) {
+  const item = (href, icon, label, sub = "", badge = "") => `<a class="set-item" href="${href}">${ic(icon, 20)}<span><b>${label}</b>${sub ? `<small>${sub}</small>` : ""}</span>${badge}<span class="chev">${ic("back", 16)}</span></a>`;
+  const group = (title, items) => `<div class="set-group"><h3>${title}</h3>${items.join("")}</div>`;
+  const pro = [];
+  if (u.role === "host") pro.push(item("#/verification", "shield", "Vérification d'identité", u.verified ? "Identité vérifiée" : "Obtenir le badge « vérifié »"));
+  if (u.role !== "admin") {
+    if (u.agency) pro.push(item("#/agence-pro", "home", "Espace agence", esc(u.agency.name)));
+    else pro.push(item("#/profile/agent", "idcard", u.role === "agent" ? "Mon dossier d'agent" : "Devenir agent immobilier",
+      { approved: "Agent vérifié", pending: "Dossier en cours d'examen", rejected: "Dossier refusé : à renvoyer" }[u.agent_status] || "Pièces justificatives à envoyer"));
+  }
+  return `<div class="set-card">${avatar(u.avatar, u.name, "lg")}<div><b>${esc(u.name)}</b><small>${esc(roleLabel(u))}${u.verified ? ` · ${verifiedTick}` : ""}</small></div></div>
+    ${group("Compte", [item("#/profile/profil", "user", "Informations personnelles", "Nom, téléphone, photo" + (isPub(u) ? ", présentation" : "")),
+      item("#/profile/securite", "lock", "Mot de passe", u.has_password ? "Changer de mot de passe" : "Créer un mot de passe"),
+      item("#/profile/appareils", "logout", "Appareils connectés", "Déconnexion")])}
+    ${group("Préférences", [item("#/profile/notifications", "bell", "Notifications", "E-mail, SMS, WhatsApp"),
+      item("#/profile/alertes", "search", "Alertes de recherche", "Être prévenu des nouvelles maisons")])}
+    ${pro.length ? group("Professionnel", pro) : ""}
+    ${group("Raccourcis", [...(isPub(u) ? [item("#/host", "list", "Mes annonces et statistiques")] : []), item("#/favorites", "heart", "Favoris"),
+      item("#/agences", "home", "Agences et agents"), item("#/prix", "trend", "Prix du marché")])}
+    ${u.role === "admin" ? "" : group("Zone sensible", [item("#/profile/suppression", "trash", "Supprimer mon compte", "Définitif")])}`;
+}
+const SETTINGS = {
+  profil: { title: "Informations personnelles", html: u => `<div class="profile-head">${avatar(u.avatar, u.name, "xl")}<div><b style="font-size:18px">${esc(u.name)}</b>
+      <p class="hint">${esc(roleLabel(u))} · ${esc(u.email)}</p><button class="btn soft sm" data-act="avatar">${ic("camera", 15)} Changer de photo</button></div></div>
+    <form id="pf" class="form"><div class="field"><label for="p-n">Nom</label><input id="p-n" name="name" value="${esc(u.name)}" maxlength="80" required></div>
+      <div class="field"><label for="p-t">Téléphone</label><input id="p-t" name="phone" type="tel" value="${esc(u.phone || "")}" maxlength="30" placeholder="+243 …"><span class="hint">Jamais affiché publiquement : vous le partagez vous-même dans une discussion.</span></div>
+      ${isPub(u) ? `<div class="field"><label for="p-b">Présentation (visible sur votre profil public)</label><textarea id="p-b" name="bio" maxlength="600" style="min-height:90px" placeholder="Votre expérience, vos quartiers, votre façon de travailler…">${esc(u.bio || "")}</textarea></div>` : ""}
+      <div class="err" id="pfErr"></div><button class="btn">Enregistrer</button></form>`,
+    bind: () => { $("#pf").onsubmit = async e => { e.preventDefault(); try { state.user = (await api("/api/auth/me", { method: "PATCH", json: Object.fromEntries(new FormData(e.target)) })).user; renderHeader(); toast("Profil enregistré"); } catch (x) { $("#pfErr").textContent = x.message; } }; } },
+  securite: { title: "Mot de passe", html: u => `<p class="hint">Connexion avec : ${[...u.providers.map(p => p === "apple" ? "Apple (iCloud)" : "Google"), ...(u.has_password ? ["e-mail + mot de passe"] : [])].join(", ") || "—"}</p>
+    <form id="pwf" class="form">${u.has_password ? `<div class="field"><label for="pw-c">Mot de passe actuel</label><input id="pw-c" name="current_password" type="password" autocomplete="current-password" required maxlength="128"></div>` : `<p class="hint">Un mot de passe vous permet aussi de vous connecter avec votre e-mail.</p>`}
+      <div class="field"><label for="pw-n">Nouveau mot de passe</label><input id="pw-n" name="new_password" type="password" autocomplete="new-password" required maxlength="128"><span class="hint">10 caractères min., majuscule, minuscule et chiffre.</span></div>
+      <div class="field"><label for="pw-r">Confirmer le nouveau mot de passe</label><input id="pw-r" name="confirm" type="password" autocomplete="new-password" required maxlength="128"></div>
+      <label class="chk" style="margin-bottom:12px"><input type="checkbox" id="pw-show"> Afficher les mots de passe</label>
+      <div class="err" id="pwErr" role="alert"></div><button class="btn">${u.has_password ? "Changer le mot de passe" : "Créer le mot de passe"}</button></form>`,
+    bind: () => {
+      $("#pw-show").onchange = e => $("#pwf").querySelectorAll("input[name$=password],input[name=confirm]").forEach(i => { i.type = e.target.checked ? "text" : "password"; });
+      $("#pwf").onsubmit = async e => {
+        e.preventDefault(); const d = Object.fromEntries(new FormData(e.target)), err = $("#pwErr");
+        if (d.new_password !== d.confirm) { err.textContent = "Les deux nouveaux mots de passe ne correspondent pas."; return; }
+        const b = e.target.querySelector(".btn"); b.disabled = true;
+        try { await api("/api/auth/password/change", { json: { current_password: d.current_password || "", new_password: d.new_password } }); state.user = (await api("/api/auth/me")).user; toast("Mot de passe enregistré. Vos autres appareils ont été déconnectés."); go("#/profile"); }
+        catch (x) { err.textContent = x.message; b.disabled = false; }
+      };
+    } },
+  appareils: { title: "Appareils connectés", html: () => `<div class="set-row"><div><b>Cet appareil</b><br><span class="hint">Vous déconnecter d'ici uniquement.</span></div><button class="btn ghost sm" data-act="logout">${ic("logout", 15)} Se déconnecter</button></div>
+    <div class="set-row"><div><b>Tous les appareils</b><br><span class="hint">Téléphone perdu, ordinateur partagé : fermez toutes les sessions ouvertes.</span></div><button class="btn ghost sm" data-act="logout-all">${ic("logout", 15)} Tout déconnecter</button></div>` },
+  notifications: { title: "Notifications", html: () => '<div id="notifPrefs"></div>', bind: () => drawNotifPrefs() },
+  alertes: { title: "Alertes de recherche", html: () => `<p class="hint">Faites une recherche puis touchez « Créer une alerte » : nous vous prévenons dès qu'une maison correspondante est publiée.</p><div id="alerts">${SK.rows(2)}</div><a class="btn soft sm" href="#/">${ic("search", 15)} Faire une recherche</a>`, bind: () => drawAlerts() },
+  agent: { title: "Agent immobilier", html: () => `<div id="agentBox">${SK.rows(3)}</div>`, bind: () => drawAgentBox() },
+  suppression: { title: "Supprimer mon compte", html: u => `<div class="notice warn">${ic("alert", 16)} La suppression est <b>définitive</b> : profil, annonces, photos, discussions, favoris, alertes et avis sont effacés.${u.agency ? " Vos biens d'agence restent à l'agence." : ""}</div>
+    <button class="btn danger" data-act="delete-account">${ic("trash", 15)} Supprimer mon compte</button>` },
+};
+async function settings(sec) {
   const u = state.user;
   if (!u) { $("#view").innerHTML = `<div class="wrap empty"><h3>Bienvenue sur Ndaku</h3><p>Connectez-vous pour gérer vos favoris, vos messages et vos annonces.</p><div class="row-actions" style="justify-content:center"><button class="btn" data-act="login">Se connecter</button><button class="btn ghost" data-act="signup">S'inscrire</button></div></div>`; return; }
-  const sec = (id, icon, title, body) => `<section class="set-sec" id="set-${id}"><h2>${ic(icon, 20)} ${title}</h2>${body}</section>`;
-  const providers = u.providers.map(p => p === "apple" ? "Apple (iCloud)" : "Google");
-  $("#view").innerHTML = `<div class="wrap page settings"><h1>${ic("gear", 24)} Paramètres</h1>
-    <nav class="set-nav" aria-label="Sections">${[["profil", "Profil"], ["securite", "Sécurité"], ["notifications", "Notifications"], ["alertes", "Alertes"], ...(u.role === "host" ? [["verification", "Vérification"]] : []), ["compte", "Compte"]].map(([k, l]) => `<a href="#/profile" data-sec="${k}">${l}</a>`).join("")}</nav>
-    ${sec("profil", "user", "Profil", `<div class="profile-head">${avatar(u.avatar, u.name, "xl")}<div><b style="font-size:18px">${esc(u.name)}</b>
-        <p class="hint">${u.role === "host" ? "Hôte" : u.role === "admin" ? "Administrateur" : "Client"}${u.verified ? ` · ${verifiedTick} identité vérifiée` : ""} · ${esc(u.email)}</p><button class="btn soft sm" data-act="avatar">${ic("camera", 15)} Changer de photo</button></div></div>
-      <form id="pf" class="form"><div class="field"><label for="p-n">Nom</label><input id="p-n" name="name" value="${esc(u.name)}" maxlength="80" required></div>
-        <div class="field"><label for="p-t">Téléphone</label><input id="p-t" name="phone" type="tel" value="${esc(u.phone || "")}" maxlength="30" placeholder="+243 …"><span class="hint">Jamais affiché publiquement : vous le partagez vous-même dans une discussion.</span></div>
-        <div class="err" id="pfErr"></div><button class="btn">Enregistrer</button></form>`)}
-    ${sec("securite", "lock", "Sécurité", `<p class="hint">Connexion avec : ${[...providers, ...(u.has_password ? ["e-mail + mot de passe"] : [])].join(", ") || "—"}</p>
-      <form id="pwf" class="form" autocomplete="on"><h3>${u.has_password ? "Changer de mot de passe" : "Créer un mot de passe"}</h3>
-        ${u.has_password ? `<div class="field"><label for="pw-c">Mot de passe actuel</label><input id="pw-c" name="current_password" type="password" autocomplete="current-password" required maxlength="128"></div>` : `<p class="hint">Vous vous connectez avec ${esc(providers.join(" / "))}. Un mot de passe vous permet aussi de vous connecter avec votre e-mail.</p>`}
-        <div class="field"><label for="pw-n">Nouveau mot de passe</label><input id="pw-n" name="new_password" type="password" autocomplete="new-password" required maxlength="128"><span class="hint">10 caractères min., majuscule, minuscule et chiffre.</span></div>
-        <div class="field"><label for="pw-r">Confirmer le nouveau mot de passe</label><input id="pw-r" name="confirm" type="password" autocomplete="new-password" required maxlength="128"></div>
-        <label class="chk" style="margin-bottom:12px"><input type="checkbox" id="pw-show"> Afficher les mots de passe</label>
-        <div class="err" id="pwErr" role="alert"></div><button class="btn">${u.has_password ? "Changer le mot de passe" : "Créer le mot de passe"}</button></form>
-      <div class="set-row"><div><b>Appareils connectés</b><br><span class="hint">Changer de mot de passe déconnecte déjà vos autres appareils.</span></div><button class="btn ghost sm" data-act="logout-all">${ic("logout", 15)} Déconnecter tous les appareils</button></div>`)}
-    <section class="set-sec" id="set-notifications"><div id="notifPrefs"></div></section>
-    ${sec("alertes", "bell", "Mes alertes de recherche", `<p class="hint">Faites une recherche puis touchez « Créer une alerte » : nous vous prévenons dès qu'une maison correspondante est publiée.</p><div id="alerts">${SK.rows(2)}</div>`)}
-    ${u.role === "host" ? sec("verification", "shield", "Vérification d'identité", `<p class="hint">${u.verified ? "Votre identité est vérifiée : le badge apparaît sur vos annonces." : "Pièce d'identité + selfie, examinés par l'équipe Ndaku puis effacés."}</p>${u.verified ? "" : '<a class="btn soft sm" href="#/verification">Faire vérifier mon identité</a>'}`) : ""}
-    ${sec("compte", "user", "Compte", `<div class="set-row"><div><b>Raccourcis</b></div><div class="row-actions">${u.role === "host" ? `<a class="btn ghost sm" href="#/host">Mes annonces</a>` : ""}<a class="btn ghost sm" href="#/favorites">Favoris</a><a class="btn ghost sm" href="#/prix">${ic("trend", 15)} Prix du marché</a></div></div>
-      <div class="set-row"><div><b>Se déconnecter</b><br><span class="hint">De cet appareil uniquement.</span></div><button class="btn ghost sm" data-act="logout">${ic("logout", 15)} Se déconnecter</button></div>
-      ${u.role === "admin" ? "" : `<div class="set-row danger-zone"><div><b>Supprimer mon compte</b><br><span class="hint">Définitif : profil, annonces, photos, discussions et avis sont effacés.</span></div><button class="btn danger sm" data-act="delete-account">${ic("trash", 15)} Supprimer</button></div>`}`)}
-  </div>`;
-  $("#view").querySelector(".set-nav").onclick = e => { const a = e.target.closest("[data-sec]"); if (!a) return; e.preventDefault(); $(`#set-${a.dataset.sec}`).scrollIntoView({ behavior: "smooth", block: "start" }); };
-  $("#pf").onsubmit = async e => {
-    e.preventDefault();
-    try { state.user = (await api("/api/auth/me", { method: "PATCH", json: Object.fromEntries(new FormData(e.target)) })).user; renderHeader(); drawNotifPrefs(); toast("Profil enregistré"); }
-    catch (x) { $("#pfErr").textContent = x.message; }
-  };
-  $("#pw-show").onchange = e => $("#pwf").querySelectorAll("input[type=password],input[data-pw]").forEach(i => { i.dataset.pw = 1; i.type = e.target.checked ? "text" : "password"; });
-  $("#pwf").onsubmit = async e => {
-    e.preventDefault(); const d = Object.fromEntries(new FormData(e.target)), err = $("#pwErr");
-    if (d.new_password !== d.confirm) { err.textContent = "Les deux nouveaux mots de passe ne correspondent pas."; return; }
-    const b = e.target.querySelector(".btn"); b.disabled = true;
+  const s = SETTINGS[sec];
+  if (sec && !s) throw new Error("Page introuvable");
+  if (sec === "suppression" && u.role === "admin") throw new Error("Un compte administrateur ne se supprime pas depuis l'application.");
+  $("#view").innerHTML = `<div class="wrap page settings-v2 ${s ? "has-sec" : ""}"><h1 class="set-h">${ic("gear", 24)} Paramètres</h1>
+    <div class="set-layout"><nav class="set-menu" aria-label="Paramètres">${settingsMenu(u)}</nav>
+      <section class="set-content">${s ? `<a class="set-back linkish" href="#/profile">${ic("back", 16)} Paramètres</a><h2>${s.title}</h2>${s.html(u)}` : `<div class="set-welcome">${ic("gear", 28)}<p>Choisissez une rubrique.</p></div>`}</section></div></div>`;
+  $("#view").querySelectorAll(".set-item").forEach(a => a.classList.toggle("on", a.getAttribute("href") === `#/profile/${sec}`));
+  if (s?.bind) s.bind();
+}
+async function drawAgentBox() {
+  const box = $("#agentBox"), u = state.user; if (!box) return;
+  const r = await api("/api/agent/application");
+  const invites = r.invites.length ? `<h3>Invitations reçues</h3>${r.invites.map(i => `<div class="set-row"><div class="hostrow">${avatar(i.logo, i.agency)}<div><b>${esc(i.agency)}</b><br><span class="hint">Vous invite comme ${i.role === "manager" ? "gérant" : "agent accrédité"}</span></div></div>
+      <div class="row-actions"><button class="btn sm" data-invite="accept" data-id="${i.id}">Accepter</button><button class="btn ghost sm" data-invite="decline" data-id="${i.id}">Refuser</button></div></div>`).join("")}${u.email_verified ? "" : '<p class="hint">Pour accepter, votre adresse e-mail doit être confirmée (ou connectez-vous avec Google).</p>'}` : "";
+  if (r.agency) { box.innerHTML = `<div class="notice ok">${ic("home", 16)} Vous êtes ${r.agency.role === "manager" ? "gérant" : "agent"} de <b>${esc(r.agency.name)}</b>.</div><a class="btn" href="#/agence-pro">Ouvrir l'espace agence</a>`; return; }
+  const a = r.application;
+  if (r.agent_status === "approved") { box.innerHTML = `<div class="notice ok">${ic("checkc", 16)} Vous êtes <b>agent immobilier vérifié</b> : vous pouvez publier, avec votre mandat et vos honoraires affichés.</div><div class="row-actions"><a class="btn" href="#/new">Publier un bien</a><a class="btn ghost" href="#/hote/${u.id}">Voir mon profil public</a></div>${invites}`; return; }
+  if (r.agent_status === "pending") { box.innerHTML = `<div class="notice warn">${ic("clock", 16)} Dossier envoyé le ${when(a.created_at)} : en cours d'examen par l'équipe Ndaku. Vous serez notifié.</div>${invites}`; return; }
+  box.innerHTML = `${invites}${r.agent_status === "rejected" && a ? `<div class="notice warn">${ic("alert", 16)} Dossier précédent refusé${a.note ? ` : ${esc(a.note)}` : ""}. Envoyez un dossier complet.</div>` : ""}
+    <p>Vous travaillez dans une agence ? Demandez à votre gérant de vous inviter avec <b>${esc(u.email)}</b>. Vous êtes <b>agent indépendant</b> ? Envoyez votre dossier : il est étudié par l'équipe Ndaku avant que vous puissiez publier.</p>
+    <form id="agf" class="form"><div class="cols"><div class="field"><label for="ag-t">Nom commercial (facultatif)</label><input id="ag-t" name="trade_name" maxlength="80"></div>
+      <div class="field"><label for="ag-l">N° RCCM, patente ou carte professionnelle *</label><input id="ag-l" name="license_no" maxlength="60" required></div></div>
+      <div class="cols"><div class="field"><label for="ag-z">Zones d'activité *</label><input id="ag-z" name="zones" maxlength="200" required placeholder="Ex. Gombe, Ngaliema, Limete"></div>
+      <div class="field"><label for="ag-e">Années d'expérience</label><input id="ag-e" name="experience" type="number" min="0" max="60" value="1"></div></div>
+      <div class="field"><label for="ag-m">Présentez votre activité</label><textarea id="ag-m" name="motivation" maxlength="1000" style="min-height:80px"></textarea></div>
+      <div class="field"><label for="ag-i">${ic("idcard", 16)} Pièce d'identité *</label><input id="ag-i" name="id_doc" type="file" accept="image/jpeg,image/png,image/webp" capture="environment" required></div>
+      <div class="field"><label for="ag-s">${ic("camera", 16)} Selfie en tenant la pièce *</label><input id="ag-s" name="selfie" type="file" accept="image/jpeg,image/png,image/webp" capture="user" required></div>
+      <div class="field"><label for="ag-p">${ic("list", 16)} Justificatifs professionnels (1 à 3) *</label><input id="ag-p" name="pro_doc" type="file" accept="image/jpeg,image/png,image/webp" multiple required><span class="hint">Carte professionnelle, RCCM, patente, attestation d'agence… (photos nettes)</span></div>
+      <div class="safe">${ic("shield", 15)} Seule l'équipe Ndaku voit vos documents. La pièce d'identité et le selfie sont effacés dès la décision.</div>
+      <div class="err" id="agErr" role="alert"></div><button class="btn" style="margin-top:14px">Envoyer mon dossier</button></form>`;
+  $("#agf").onsubmit = async e => {
+    e.preventDefault(); if (needAvatar()) return;
+    const f = e.target, b = f.querySelector(".btn"), pro = [...f.pro_doc.files];
+    if (!f.id_doc.files[0] || !f.selfie.files[0] || !pro.length) { $("#agErr").textContent = "Ajoutez la pièce d'identité, le selfie et au moins un justificatif."; return; }
+    if (pro.length > 3) { $("#agErr").textContent = "3 justificatifs maximum."; return; }
+    b.disabled = true; b.textContent = "Envoi…";
     try {
-      await api("/api/auth/password/change", { json: { current_password: d.current_password || "", new_password: d.new_password } });
-      state.user = (await api("/api/auth/me")).user; toast("Mot de passe enregistré. Vos autres appareils ont été déconnectés."); profile();
-    } catch (x) { err.textContent = x.message; b.disabled = false; }
+      const fd = new FormData();
+      ["trade_name", "license_no", "zones", "experience", "motivation"].forEach(k => fd.append(k, f[k].value));
+      fd.append("id_doc", await shrink(f.id_doc.files[0], 1600)); fd.append("selfie", await shrink(f.selfie.files[0], 1600));
+      for (const p of pro) fd.append("pro_doc", await shrink(p, 1600));
+      await api("/api/agent/application", { method: "POST", body: fd });
+      state.user = (await api("/api/auth/me")).user; toast("Dossier envoyé"); drawAgentBox();
+    } catch (x) { $("#agErr").textContent = x.message; b.disabled = false; b.textContent = "Envoyer mon dossier"; }
   };
-  drawNotifPrefs(); drawAlerts();
 }
 function deleteAccountModal() {
   const u = state.user;
@@ -809,23 +887,29 @@ function deleteAccountModal() {
 }
 
 /* ============================================================================ espace hôte */
-async function dashboard() {
+async function dashboard(params = {}) {
   const u = state.user;
   if (!u) { $("#view").innerHTML = `<div class="wrap empty"><h3>Devenez hôte sur Ndaku</h3><p>Publiez vos maisons à louer ou à vendre en quelques minutes.</p><button class="btn" data-act="signup-host">Créer un compte hôte</button></div>`; return; }
-  if (u.role !== "host") throw new Error("Espace réservé aux hôtes.");
-  $("#view").innerHTML = `<div class="wrap page"><div class="row-actions" style="justify-content:space-between;margin-bottom:12px"><h1 style="margin:0">Mes annonces</h1><a class="btn" href="#/new">${ic("plus", 16)} Nouvelle annonce</a></div><div id="mine">${SK.rows(4)}</div></div>`;
-  const [r, st] = await Promise.all([api("/api/my/listings"), api("/api/my/stats").catch(() => ({ items: [], daily: [] }))]);
+  if (!isPub(u)) throw new Error("Espace réservé aux hôtes et aux agents.");
+  const days = [7, 30, 90].includes(+params.days) ? +params.days : 30;
+  $("#view").innerHTML = `<div class="wrap page"><div class="row-actions" style="justify-content:space-between;margin-bottom:12px"><h1 style="margin:0">Mes annonces</h1>${canPublish(u) ? `<a class="btn" href="#/new">${ic("plus", 16)} Nouvelle annonce</a>` : ""}</div><div id="mine">${SK.rows(4)}</div></div>`;
+  const [r, st] = await Promise.all([api("/api/my/listings"), api(`/api/my/stats?days=${days}`)]);
   const S = Object.fromEntries(st.items.map(x => [x.id, x]));
-  const sum = k => st.items.reduce((a, x) => a + (x[k] || 0), 0);
-  $("#mine").innerHTML = `${u.verified ? "" : `<div class="notice ok">${ic("shield", 16)} <b>Obtenez le badge « Hôte vérifié »</b> : les clients contactent davantage les hôtes vérifiés. <a href="#/verification">Vérifier mon identité</a></div>`}
-    ${r.items.length ? `<div class="tiles">${[["eye", "Vues (30 jours)", st.daily.reduce((a, d) => a + d.n, 0)], ["heart", "Favoris", sum("fav_count")], ["chat", "Contacts", sum("contacts")], ["cal", "Visites réservées", sum("visits")]].map(([i, lb, v]) => `<div class="tile">${ic(i, 18)}<b>${fmt(v)}</b><span>${lb}</span></div>`).join("")}</div>` : ""}
+  const indep = u.role === "agent" && !u.agency && u.agent_status === "approved";
+  $("#mine").innerHTML = `${u.agency ? `<div class="notice ok">${ic("home", 16)} Vous publiez pour <b>${esc(u.agency.name)}</b>. <a href="#/agence-pro">Ouvrir l'espace agence</a></div>` : ""}
+    ${u.role === "agent" && !canPublish(u) ? `<div class="notice warn">${ic("clock", 16)} Vous pourrez publier dès que votre dossier d'agent sera validé. <a href="#/profile/agent">Voir mon dossier</a></div>` : ""}
+    ${u.role === "host" && !u.verified ? `<div class="notice ok">${ic("shield", 16)} <b>Obtenez le badge « Hôte vérifié »</b> : les clients contactent davantage les hôtes vérifiés. <a href="#/verification">Vérifier mon identité</a></div>` : ""}
     ${state.auth.email_verification && !u.email_verified ? '<div class="notice warn">Confirmez votre adresse e-mail pour publier. <button type="button" class="linkish" data-act="resend">Renvoyer l\'e-mail</button></div>' : ""}
     ${u.avatar ? "" : '<div class="notice warn">Ajoutez une photo de profil pour publier. <button type="button" class="linkish" data-act="avatar">Ajouter</button></div>'}
-    ${r.items.length ? `<div class="table-wrap"><table class="tbl"><thead><tr><th></th><th>Annonce</th><th>Prix</th><th>Statut</th><th title="Vues uniques">${ic("eye", 15)}</th><th title="Favoris">${ic("heart", 15)}</th><th title="Contacts">${ic("chat", 15)}</th><th title="Visites">${ic("cal", 15)}</th><th></th></tr></thead><tbody>
-      ${r.items.map(l => `<tr><td>${safeUrl(l.cover) ? `<img class="thumb" src="${esc(safeUrl(l.cover))}" alt="">` : ""}</td><td><a href="#/listing/${l.id}"><b>${esc(l.title)}</b></a><br><span class="hint">${esc(l.address || "")} · ${esc(l.commune)}, ${esc(l.city)}</span>${l.status === "pending" ? `<br><span class="hint">En vérification : ${esc(l.risk_reasons.join(" · "))}</span>` : ""}</td>
-        <td>${money(l)}</td><td><span class="pill ${l.status}">${{ active: "En ligne", pending: "En vérification", rejected: "Rejetée", closed: l.deal === "location" ? "Loué" : "Vendu" }[l.status]}</span></td><td>${S[l.id]?.views ?? 0}</td><td>${S[l.id]?.fav_count ?? 0}</td><td><a href="#/messages">${l.conversations}</a></td><td>${S[l.id]?.visits ?? 0}</td>
-        <td><div class="row-actions">${l.status === "active" || l.status === "pending" ? `<button class="btn soft sm" data-slots="${l.id}">${ic("cal", 14)} Créneaux</button>` : ""}${l.status === "active" || l.status === "closed" ? `<button class="btn danger sm" data-del="${l.id}" aria-label="Supprimer">${ic("trash", 14)}</button>` : ""}</div></td></tr>`).join("")}</tbody></table></div>`
-      : '<div class="empty"><h3>Aucune annonce</h3><p>Publiez votre première maison.</p><a class="btn" href="#/new">Publier</a></div>'}`;
+    ${r.items.length ? `<div class="sec-head"><h2>Performances sur ${days} jours</h2>${periodPicker(days, "#/host")}</div>${statTiles(st.totals, st.response)}${dailyCharts(st.daily)}
+      <h2 class="chart-t">Détail par annonce</h2>${listingStatsTable(r.items.map(l => ({ ...l, ...(S[l.id] || {}), cover: l.cover })), { feature: indep })}
+      ${indep ? `<p class="hint">${ic("star", 14)} Agent indépendant : jusqu'à 3 biens mis en avant.</p>` : ""}
+      <div class="row-actions" style="margin-top:14px">${r.items.filter(l => l.status === "active" || l.status === "closed").map(l => `<button class="btn ghost sm" data-del="${l.id}">${ic("trash", 14)} ${esc(l.title.slice(0, 24))}</button>`).join("")}</div>`
+      : `<div class="empty"><h3>Aucune annonce</h3>${canPublish(u) ? '<p>Publiez votre premier bien.</p><a class="btn" href="#/new">Publier</a>' : ""}</div>`}`;
+  const mine = $("#mine");
+  mine.addEventListener("mousemove", e => { const h = e.target.closest("[data-tip]"); chartTip(e, h && h.dataset.tip); });
+  mine.addEventListener("mouseleave", e => chartTip(e, ""));
+  cleanup.push(() => chartTip({}, ""));
 }
 
 /* ======================================================================== publier un bien */
@@ -863,8 +947,10 @@ function drawPv() {
 async function newListing() {
   const u = state.user;
   if (!u) throw Object.assign(new Error("Connexion requise"), { status: 401 });
-  if (u.role !== "host") throw new Error("Seuls les hôtes peuvent publier des annonces.");
+  if (!isPub(u)) throw new Error("Seuls les hôtes et les agents vérifiés peuvent publier des annonces.");
+  if (!canPublish(u)) { go("#/profile/agent"); return; }
   photos = [];
+  const pro = u.role === "agent";
   const M = state.meta;
   $("#view").innerHTML = `<div class="wrap page"><form class="form" id="nf" novalidate><h1>Publier un bien</h1>
     ${u.avatar ? "" : '<div class="notice warn">Ajoutez d\'abord une photo de profil. <button type="button" class="linkish" data-act="avatar">Ajouter</button></div>'}
@@ -890,6 +976,10 @@ async function newListing() {
       `<div class="field slider"><label for="n-${k}">${ic(i, 18)} ${lb} *</label><div class="sl-row"><input id="n-${k}" name="${k}" type="range" min="1" max="10" step="1" value="5" aria-describedby="n-${k}-v"><output id="n-${k}-v" for="n-${k}">5/10 · ${SCORE_WORD(5)}</output></div><span class="hint">${h}</span></div>`).join("")}
     <div class="cols"><div class="field"><label for="n-road">${ic("road", 16)} Route menant à la maison *</label><select id="n-road" name="access_type" required><option value="">Choisir…</option>${Object.entries(M.access_types || {}).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join("")}</select></div>
     <div class="field"><span class="lbl">${ic("rain", 16)} Accessible en saison des pluies ? *</span><div class="seg-pick mini"><label><input type="radio" name="rain_access" value="1"><b>Oui</b></label><label><input type="radio" name="rain_access" value="0"><b>Non</b></label></div></div></div>
+    ${pro ? `<h2 style="font-size:18px;margin:18px 0 4px">${ic("idcard", 18)} Mandat et honoraires</h2>
+    <p class="hint" style="margin-top:0">${u.agency ? `Publié au nom de <b>${esc(u.agency.name)}</b>. ` : ""}Ces informations sont affichées aux clients : la transparence évite les litiges.</p>
+    <div class="cols"><div class="field"><label for="n-man">Votre mandat *</label><select id="n-man" name="mandate" required><option value="">Choisir…</option>${Object.entries(MANDATE_LABEL).map(([k, v]) => `<option value="${k}">${v}</option>`).join("")}</select></div>
+    <div class="field"><label for="n-fee">Honoraires demandés au client *</label><input id="n-fee" name="agency_fee" maxlength="120" required placeholder="Ex. 1 mois de loyer, 5 %, Aucun"></div></div>` : ""}
     <label class="chk" style="margin-bottom:14px"><input type="checkbox" name="furnished" value="1"> ${ic("sofa", 16)} Meublé</label>
     <div class="field"><span class="lbl">Équipements</span><div class="tags">${M.amenities.map(a => `<label class="tag"><input type="checkbox" name="amenities" value="${esc(a)}">${ic(AMENITY_ICON[a], 16)} ${esc(a)}</label>`).join("")}</div></div>
     <div class="field"><span class="lbl">Photos (${M.min_images} à ${M.max_images}) — uniques, prises par vous</span>
@@ -951,6 +1041,7 @@ async function newListing() {
     if (ok.length < M.min_images) { err.textContent = `Ajoutez au moins ${M.min_images} photos.`; return; }
     const fd = new FormData(e.target), d = Object.fromEntries(fd);
     if (!d.access_type || !fd.has("rain_access")) { err.textContent = "Indiquez le type de route et l'accès en saison des pluies."; return; }
+    if (pro && (!d.mandate || !d.agency_fee)) { err.textContent = "Indiquez votre mandat et vos honoraires."; return; }
     for (const k of ["elec_score", "water_score", "access_score"]) d[k] = +d[k];
     d.rain_access = d.rain_access === "1";
     const ll = pin.getLatLng();
@@ -968,7 +1059,7 @@ async function newListing() {
 
 /* ============================================================================= modération */
 // [onglet, libellé, réservé à l'administrateur]
-const ADMIN_TABS = [["dash", "Tableau de bord"], ["queue", "Annonces en attente"], ["kyc", "Identités", 1], ["reports", "Signalements"],
+const ADMIN_TABS = [["dash", "Tableau de bord"], ["queue", "Annonces en attente"], ["kyc", "Identités", 1], ["pros", "Agents (dossiers)", 1], ["agencies", "Agences", 1], ["reports", "Signalements"],
   ["users", "Comptes signalés"], ["accounts", "Utilisateurs", 1], ["places", "Lieux proposés"], ["logs", "Journal", 1], ["osm", "Référentiel (OSM)", 1]];
 const EVENT_LABEL = { login: "Connexion", register: "Inscription", account_locked: "Compte verrouillé (essais)", password_changed: "Mot de passe changé",
   password_reset: "Mot de passe réinitialisé", identity_linked: "Compte Google/Apple lié", oauth_rejected: "Connexion Google/Apple refusée",
@@ -993,19 +1084,23 @@ async function admin(tab, params = {}) {
   const box = $("#adm");
   if (tab === "dash") {
     const r = await api("/api/admin/stats"), c = r.counts;
-    const todo = [["queue", "shield", "Annonces en attente", c.pending], ...(isAdmin() ? [["kyc", "idcard", "Identités à vérifier", c.kyc]] : []),
+    const todo = [["queue", "shield", "Annonces en attente", c.pending], ...(isAdmin() ? [["kyc", "idcard", "Identités à vérifier", c.kyc], ["pros", "list", "Dossiers d'agents", c.agent_apps]] : []),
       ["reports", "flag", "Annonces signalées", c.reports], ["users", "alert", "Comptes signalés", c.user_reports], ["places", "pin", "Lieux proposés", c.places]];
     box.innerHTML = `<h2 class="chart-t">À traiter</h2><div class="tiles">${todo.map(([k, i, l, n]) => `<a class="tile todo ${n ? "hot" : ""}" href="#/admin?tab=${k}">${ic(i, 18)}<b>${fmt(n)}</b><span>${l}</span></a>`).join("")}</div>
       <h2 class="chart-t">Activité</h2><div class="tiles">${[["user", "Utilisateurs", c.users, `+${c.users_7d} en 7 j`], ["home", "Hôtes", c.hosts, `${c.verified_hosts} vérifiés`],
         ["list", "Annonces en ligne", c.active, `${c.demo} de démo · +${c.listings_7d} en 7 j`], ["chat", "Messages (7 j)", c.messages_7d, `${c.conversations_7d} nouvelles discussions`],
-        ["cal", "Visites réservées (7 j)", c.visits_7d, ""], ["ban", "Comptes suspendus", c.suspended, ""]].map(([i, l, n, sub]) => `<div class="tile">${ic(i, 18)}<b>${fmt(n)}</b><span>${l}</span>${sub ? `<span class="hint">${sub}</span>` : ""}</div>`).join("")}</div>
+        ["cal", "Visites réservées (7 j)", c.visits_7d, ""], ["home", "Agences actives", c.agencies, `${c.agents} agents au total`], ["ban", "Comptes suspendus", c.suspended, ""]].map(([i, l, n, sub]) => `<div class="tile">${ic(i, 18)}<b>${fmt(n)}</b><span>${l}</span>${sub ? `<span class="hint">${sub}</span>` : ""}</div>`).join("")}</div>
       <div class="dash-charts"><div><h2 class="chart-t">Inscriptions par jour</h2>${columns(r.signups, "Inscriptions par jour sur 30 jours")}</div><div><h2 class="chart-t">Annonces publiées par jour</h2>${columns(r.listings, "Annonces publiées par jour sur 30 jours")}</div></div>`;
     box.addEventListener("mousemove", e => { const h = e.target.closest("[data-tip]"); chartTip(e, h && h.dataset.tip); });
     box.addEventListener("mouseleave", e => chartTip(e, ""));
     cleanup.push(() => chartTip({}, ""));
+  } else if (tab === "pros") {
+    await adminPros(box);
+  } else if (tab === "agencies") {
+    await adminAgencies(box, params);
   } else if (tab === "accounts" && params.id) {
     const d = await api(`/api/admin/users/${+params.id}`);
-    const roleTxt = d.role === "admin" ? "Administrateur" : d.role === "host" ? "Hôte" : "Client";
+    const roleTxt = { admin: "Administrateur", host: "Hôte", agent: "Agent immobilier", client: "Client" }[d.role];
     box.innerHTML = `<a class="linkish" href="#/admin?tab=accounts">${ic("back", 15)} Tous les utilisateurs</a>
       <div class="profile-head" style="margin-top:14px">${avatar(d.avatar, d.name, "xl")}<div><h2 style="margin:0">${esc(d.name)} <span class="hint">#${d.id}</span></h2>
         <p class="hint">${roleTxt}${d.moderator ? " · modérateur" : ""}${d.verified ? ` · ${verifiedTick} vérifié` : ""} · inscrit le ${when(d.created_at)}</p>
@@ -1013,7 +1108,7 @@ async function admin(tab, params = {}) {
         ${d.suspended ? '<span class="pill rejected">Compte suspendu</span>' : ""}</div></div>
       ${d.role === "admin" ? '<p class="hint">Les administrateurs se gèrent via la variable ADMIN_EMAILS.</p>' : `<div class="row-actions">
         <button class="btn ${d.suspended ? "" : "danger"} sm" data-usr="suspend" data-id="${d.id}" data-on="${d.suspended ? 0 : 1}">${d.suspended ? "Rétablir le compte" : "Suspendre le compte"}</button>
-        ${d.role === "host" ? `<button class="btn soft sm" data-usr="verify" data-id="${d.id}" data-on="${d.verified ? 0 : 1}">${d.verified ? "Retirer le badge vérifié" : "Accorder le badge vérifié"}</button>` : ""}
+        ${d.role === "host" || d.role === "agent" ? `<button class="btn soft sm" data-usr="verify" data-id="${d.id}" data-on="${d.verified ? 0 : 1}">${d.verified ? "Retirer le badge vérifié" : "Accorder le badge vérifié"}</button>` : ""}
         <button class="btn ghost sm" data-usr="moderator" data-id="${d.id}" data-on="${d.moderator ? 0 : 1}">${d.moderator ? "Retirer le rôle de modérateur" : "Nommer modérateur"}</button></div>`}
       <div class="tiles" style="margin-top:18px">${[["list", "Annonces", d.listings.length], ["chat", "Discussions", d.stats.conversations], ["send", "Messages envoyés", d.stats.messages],
         ["star", "Note d'hôte", d.host_rating_count ? (d.host_rating_sum / d.host_rating_count).toFixed(1) + " / 5" : "—"], ["alert", "Signalements reçus", d.reports.length]].map(([i, l, n]) => `<div class="tile">${ic(i, 18)}<b>${n}</b><span>${l}</span></div>`).join("")}</div>
@@ -1023,7 +1118,7 @@ async function admin(tab, params = {}) {
       <h2 class="chart-t">Historique</h2>${eventTable(d.events)}`;
   } else if (tab === "accounts") {
     const q = params.q || "", f = params.filter || "all";
-    const filters = [["all", "Tous"], ["host", "Hôtes"], ["client", "Clients"], ["verified", "Vérifiés"], ["moderator", "Modérateurs"], ["reported", "Signalés"], ["suspended", "Suspendus"], ["admin", "Administrateurs"]];
+    const filters = [["all", "Tous"], ["host", "Hôtes"], ["agent", "Agents"], ["client", "Clients"], ["verified", "Vérifiés"], ["moderator", "Modérateurs"], ["reported", "Signalés"], ["suspended", "Suspendus"], ["admin", "Administrateurs"]];
     box.innerHTML = `<form class="adm-search" id="asf"><input name="q" value="${esc(q)}" placeholder="Nom, e-mail, téléphone ou n°" aria-label="Rechercher un utilisateur">
         <select name="filter" aria-label="Filtre">${filters.map(([k, l]) => `<option value="${k}" ${k === f ? "selected" : ""}>${l}</option>`).join("")}</select><button class="btn sm">${ic("search", 15)} Rechercher</button></form><div id="ul">${SK.rows(5)}</div>`;
     $("#asf").onsubmit = e => { e.preventDefault(); const d = Object.fromEntries(new FormData(e.target)); go(`#/admin?tab=accounts&q=${encodeURIComponent(d.q)}&filter=${d.filter}`); };
@@ -1031,7 +1126,7 @@ async function admin(tab, params = {}) {
     const page = async () => {
       const r = await api(`/api/admin/users?q=${encodeURIComponent(q)}&filter=${f}&offset=${offset}`);
       const rows = r.items.map(x => `<tr><td>${avatar(x.avatar, x.name)}</td><td><a href="#/admin?tab=accounts&id=${x.id}"><b>${esc(x.name)}</b></a><br><span class="hint">${esc(x.email)}</span></td>
-        <td>${x.role === "admin" ? "Admin" : x.role === "host" ? "Hôte" : "Client"}${x.moderator ? " · modo" : ""}${x.verified ? " " + verifiedTick : ""}</td><td>${x.listings}</td>
+        <td>${{ admin: "Admin", host: "Hôte", agent: "Agent", client: "Client" }[x.role]}${x.moderator ? " · modo" : ""}${x.verified ? " " + verifiedTick : ""}</td><td>${x.listings}</td>
         <td>${x.reports ? `<span class="pill rejected">${x.reports}</span>` : "0"}</td><td>${x.suspended ? '<span class="pill rejected">suspendu</span>' : '<span class="pill active">actif</span>'}</td><td>${when(x.created_at)}</td></tr>`).join("");
       if (!offset) $("#ul").innerHTML = r.items.length ? `<div class="table-wrap"><table class="tbl"><thead><tr><th></th><th>Utilisateur</th><th>Rôle</th><th>Annonces</th><th>Signalé</th><th>État</th><th>Inscrit</th></tr></thead><tbody id="ub">${rows}</tbody></table></div><div class="more" id="um"></div>` : '<div class="empty"><h3>Aucun utilisateur trouvé</h3></div>';
       else $("#ub").insertAdjacentHTML("beforeend", rows);
@@ -1334,8 +1429,10 @@ async function hostPage(id) {
   $("#view").innerHTML = `<div class="wrap page">${SK.rows(1)}${SK.cards(3)}</div>`;
   const h = await api(`/api/hosts/${id}`);
   $("#view").innerHTML = `<div class="wrap page"><div class="profile-head">${avatar(h.avatar, h.name, "xl")}<div><h1 style="margin:0">${esc(h.name)}</h1>
-      <p class="hint">Hôte depuis ${new Date(h.since * 1000).toLocaleDateString("fr-FR", { month: "long", year: "numeric" })}</p>
-      ${h.verified ? `<span class="verif">${ic("shield", 15)} Identité vérifiée par Ndaku</span>` : '<span class="unverif">Identité non vérifiée</span>'}
+      <p class="hint">${h.pro ? (h.agency ? "Agent immobilier" : "Agent immobilier indépendant") : "Hôte"} sur Ndaku depuis ${new Date(h.since * 1000).toLocaleDateString("fr-FR", { month: "long", year: "numeric" })}</p>
+      ${h.agency ? `<a class="agency-strip mini" href="#/agence/${esc(h.agency.slug)}">${agencyLogo(h.agency)}<span><small>Agent de</small><b>${esc(h.agency.name)}</b></span></a>` : ""}
+      ${h.verified ? `<span class="verif">${ic("shield", 15)} ${h.pro ? "Agent vérifié par Ndaku" : "Identité vérifiée par Ndaku"}</span>` : '<span class="unverif">Identité non vérifiée</span>'}
+      <p class="hint">${responseLine(h.response)}</p>${h.bio ? `<p class="desc">${esc(h.bio)}</p>` : ""}
       <p>${h.rating ? `${stars(Math.round(h.rating))} <b>${Number(h.rating).toFixed(1)}</b> · ${h.reviews_count} avis` : '<span class="hint">Pas encore d\'avis</span>'}</p></div></div>
     <h2 class="sec-title">Annonces de ${esc(h.name)}</h2>${h.listings.length ? `<div class="grid">${h.listings.map(l => cardHtml(l)).join("")}</div>` : '<p class="hint">Aucune annonce en ligne.</p>'}
     <div class="block-sec" style="max-width:720px"><h2>Avis sur l'hôte</h2>
@@ -1397,8 +1494,213 @@ if (window.visualViewport) {
   visualViewport.addEventListener("resize", setVh); setVh();
 }
 
+/* ============================================================== agences et agents immobiliers */
+const MANDATE_LABEL = { proprietaire: "Propriétaire direct", simple: "Mandat simple", exclusif: "Mandat exclusif" };
+const fmtMinutes = m => m == null ? "—" : m < 60 ? `${m} min` : m < 1440 ? `${Math.round(m / 60)} h` : `${Math.round(m / 1440)} j`;
+const responseLine = r => r && r.conversations ? `${ic("clock", 15)} Répond en général en <b>${fmtMinutes(r.response_minutes)}</b> · taux de réponse ${r.response_rate ?? 0} %` : "";
+const agencyLogo = (a, cls = "") => safeUrl(a?.logo) ? `<img class="agency-logo ${cls}" src="${esc(safeUrl(a.logo))}" alt="">` : `<span class="agency-logo ${cls} on">${initials(a?.name)}</span>`;
+
+// Affichages réels dans les résultats (cartes visibles à l'écran), envoyés par lots : base du taux de clic.
+const seenCards = new Set(); let pendingImpr = [], imprTimer = null;
+function trackImpressions(root) {
+  if (!("IntersectionObserver" in window)) return;
+  const io = new IntersectionObserver(es => es.forEach(e => {
+    if (!e.isIntersecting) return;
+    const id = +e.target.dataset.id; io.unobserve(e.target);
+    if (!id || seenCards.has(id)) return;
+    seenCards.add(id); pendingImpr.push(id);
+    clearTimeout(imprTimer); imprTimer = setTimeout(flushImpressions, 1500);
+  }), { threshold: 0.5 });
+  const scan = () => root.querySelectorAll(".card[data-id]:not([data-obs])").forEach(c => { c.dataset.obs = 1; io.observe(c); });
+  scan(); const mo = new MutationObserver(scan); mo.observe(root, { childList: true, subtree: true });
+  cleanup.push(() => { io.disconnect(); mo.disconnect(); flushImpressions(); seenCards.clear(); });
+}
+function flushImpressions() {
+  if (!pendingImpr.length) return;
+  const ids = pendingImpr.splice(0, 60);
+  fetch("/api/impressions", { method: "POST", headers: { "X-Ndaku": "1", "Content-Type": "application/json" }, body: JSON.stringify({ ids }), keepalive: true }).catch(() => {});
+  if (pendingImpr.length) flushImpressions();
+}
+
+async function agenciesDir(params) {
+  const q = params.q || "";
+  $("#view").innerHTML = `<div class="wrap page"><div class="sec-head"><h1>${ic("home", 24)} Agences et agents immobiliers</h1></div>
+    <p class="hint">Chaque agence est créée par l'équipe Ndaku après vérification de ses documents (RCCM, identification nationale…). Chaque agent indépendant a fait valider son dossier.</p>
+    <form class="adm-search" id="dsf"><input name="q" value="${esc(q)}" placeholder="Nom de l'agence ou ville" aria-label="Rechercher une agence"><button class="btn sm">${ic("search", 15)} Rechercher</button></form>
+    <div id="dir">${SK.cards(3)}</div></div>`;
+  $("#dsf").onsubmit = e => { e.preventDefault(); go(`#/agences?q=${encodeURIComponent(e.target.q.value)}`); };
+  const r = await api(`/api/agencies${q ? `?q=${encodeURIComponent(q)}` : ""}`);
+  $("#dir").innerHTML = `<h2 class="chart-t">Agences vérifiées</h2>${r.items.length ? `<div class="agency-grid">${r.items.map(a => `<a class="agency-card" href="#/agence/${esc(a.slug)}">
+      <div class="ac-cover">${safeUrl(a.cover) ? `<img loading="lazy" src="${esc(safeUrl(a.cover))}" alt="">` : ""}${a.is_demo ? '<span class="badge demo">Démo</span>' : ""}</div>
+      <div class="ac-body">${agencyLogo(a)}<div><b>${esc(a.name)}</b> <span class="vtick" title="Agence vérifiée">${ic("checkc", 15)}</span><br><span class="hint">${esc(a.city || "RDC")} · ${a.listings} bien${a.listings > 1 ? "s" : ""} · ${a.agents} agent${a.agents > 1 ? "s" : ""}</span></div></div>
+      ${a.description ? `<p class="ac-desc">${esc(a.description.slice(0, 140))}${a.description.length > 140 ? "…" : ""}</p>` : ""}</a>`).join("")}</div>` : '<p class="hint">Aucune agence pour cette recherche.</p>'}
+    <h2 class="chart-t">Agents indépendants vérifiés</h2>${r.agents.length ? `<div class="agent-grid">${r.agents.map(a => `<a class="agent-card" href="#/hote/${a.id}">${avatar(a.avatar, a.name, "lg")}<div><b>${esc(a.name)}</b> ${verifiedTick}<br><span class="hint">${a.listings} bien${a.listings > 1 ? "s" : ""}</span>${a.bio ? `<p>${esc(a.bio.slice(0, 90))}${a.bio.length > 90 ? "…" : ""}</p>` : ""}</div></a>`).join("")}</div>` : '<p class="hint">Aucun agent indépendant pour le moment.</p>'}`;
+}
+
+async function agencyPage(slug, params) {
+  $("#view").innerHTML = `<div class="wrap page">${SK.rows(2)}${SK.cards(3)}</div>`;
+  const a = await api(`/api/agencies/${encodeURIComponent(slug)}`);
+  const deal = params.deal || "";
+  const items = a.listings.filter(l => !deal || l.deal === deal);
+  $("#view").innerHTML = `<div class="wrap page agency-page">
+    <div class="agency-hero">${agencyLogo(a, "xl")}<div><h1>${esc(a.name)}</h1>
+      <span class="verif">${ic("shield", 15)} Agence vérifiée par Ndaku</span>${a.is_demo ? ' <span class="pill">Démo</span>' : ""}
+      <p class="hint">${[a.city, a.rccm ? "RCCM " + a.rccm : "", a.id_nat ? "Id. Nat. " + a.id_nat : "", "sur Ndaku depuis " + new Date(a.since * 1000).toLocaleDateString("fr-FR", { month: "long", year: "numeric" })].filter(Boolean).map(esc).join(" · ")}</p>
+      <p>${a.rating ? `${stars(Math.round(a.rating))} <b>${Number(a.rating).toFixed(1)}</b> · ${a.reviews_count} avis sur ses agents` : ""}</p>
+      <p class="hint">${responseLine(a.response)}</p></div></div>
+    <div class="agency-body"><div>
+      ${a.description ? `<div class="block-sec"><h2>À propos</h2><div class="desc">${esc(a.description)}</div></div>` : ""}
+      <div class="block-sec"><div class="sec-head"><h2>Catalogue · ${a.listings.length} bien${a.listings.length > 1 ? "s" : ""}</h2>
+        <div class="tabs mini">${[["", "Tous"], ["location", "À louer"], ["vente", "À vendre"]].map(([k, l]) => `<a class="${deal === k ? "on" : ""}" href="#/agence/${esc(a.slug)}${k ? `?deal=${k}` : ""}">${l}</a>`).join("")}</div></div>
+        ${items.length ? `<div class="grid">${items.map(l => cardHtml(l)).join("")}</div>` : '<p class="hint">Aucun bien dans cette catégorie.</p>'}</div>
+    </div><aside><div class="panel static"><h3>Contacter l'agence</h3>
+      ${a.phone ? `<p>${ic("chat", 15)} ${esc(a.phone)}</p>` : ""}${a.email ? `<p>${ic("send", 15)} ${esc(a.email)}</p>` : ""}${a.address ? `<p>${ic("pin", 15)} ${esc(a.address)}</p>` : ""}
+      ${/^https:\/\//.test(a.website || "") ? `<p><a href="${esc(a.website)}" target="_blank" rel="noopener noreferrer nofollow">${esc(a.website.replace(/^https:\/\//, ""))}</a></p>` : ""}
+      <p class="hint">Pour une visite, ouvrez un bien et cliquez « Demander une visite » : la discussion est suivie par l'agence.</p>
+      <h3>L'équipe</h3>${a.team.map(t => `<a class="team-row" href="#/hote/${t.id}">${avatar(t.avatar, t.name)}<span><b>${esc(t.name)}</b><small>${esc(t.title || (t.role === "manager" ? "Gérant" : "Agent"))} · ${t.listings} bien${t.listings > 1 ? "s" : ""}</small></span></a>`).join("")}
+    </div></aside></div></div>`;
+  trackImpressions($("#view"));
+}
+
+/* ---------------------------------------------------------------- espace agence (web) */
+const PRO_TABS = [["apercu", "Vue d'ensemble", "chart"], ["annonces", "Annonces", "list"], ["equipe", "Équipe", "user", 1], ["discussions", "Discussions", "chat", 1], ["profil", "Profil de l'agence", "gear", 1]];
+function periodPicker(cur, base) { return `<div class="period">${[7, 30, 90].map(d => `<a class="${+cur === d ? "on" : ""}" href="${base}${base.includes("?") ? "&" : "?"}days=${d}">${d} j</a>`).join("")}</div>`; }
+function statTiles(t, response) {
+  return `<div class="tiles">${[["eye", "Affichages dans les résultats", fmt(t.impressions)], ["search", "Vues des annonces", fmt(t.views)], ["trend", "Taux de clic", t.ctr == null ? "—" : t.ctr + " %"],
+    ["chat", "Contacts (discussions)", fmt(t.contacts)], ["cal", "Visites réservées", fmt(t.visits)], ["heart", "Favoris (total)", fmt(t.favorites)],
+    ...(response ? [["clock", "Délai de réponse médian", fmtMinutes(response.response_minutes)], ["checkc", "Taux de réponse", response.response_rate == null ? "—" : response.response_rate + " %"]] : [])]
+    .map(([i, l, v]) => `<div class="tile">${ic(i, 18)}<b>${v}</b><span>${l}</span></div>`).join("")}</div>`;
+}
+function dailyCharts(daily) {
+  const s = k => daily.map(d => ({ day: d.day, n: d[k] }));
+  return `<div class="dash-charts"><div><h2 class="chart-t">Vues par jour</h2>${columns(s("views"), "Vues par jour")}</div><div><h2 class="chart-t">Contacts par jour</h2>${columns(s("contacts"), "Contacts par jour")}</div></div>`;
+}
+function listingStatsTable(items, opts = {}) {
+  if (!items.length) return '<div class="empty"><h3>Aucune annonce</h3><p>Publiez votre premier bien.</p><a class="btn" href="#/new">Publier</a></div>';
+  const st = { active: "En ligne", pending: "En vérification", rejected: "Rejetée", closed: "Clôturée" };
+  return `<div class="table-wrap"><table class="tbl"><thead><tr><th></th><th>Annonce</th>${opts.agents ? "<th>Agent</th>" : ""}<th>Statut</th><th title="Affichages">${ic("eye", 15)}</th><th title="Vues">${ic("search", 15)}</th><th>Clic</th><th title="Favoris">${ic("heart", 15)}</th><th title="Contacts">${ic("chat", 15)}</th><th title="Visites">${ic("cal", 15)}</th><th></th></tr></thead><tbody>
+    ${items.map(l => `<tr><td>${safeUrl(l.cover) ? `<img class="thumb" src="${esc(safeUrl(l.cover))}" alt="">` : ""}</td><td><a href="#/listing/${l.id}"><b>${esc(l.title)}</b></a>${l.featured ? ` <span class="pill feat">${ic("star", 12)} En avant</span>` : ""}<br><span class="hint">${money(l)} · ${esc(l.commune || "")}</span></td>
+      ${opts.agents ? `<td>${opts.manager ? `<select class="assign" data-assign="${l.id}" aria-label="Agent responsable">${opts.agents.map(a => `<option value="${a.id}" ${a.id === l.owner_id ? "selected" : ""}>${esc(a.name)}</option>`).join("")}</select>` : esc(l.agent)}</td>` : ""}
+      <td><span class="pill ${esc(l.status)}">${st[l.status] || esc(l.status)}</span></td><td>${l.impressions}</td><td>${l.views}</td><td>${l.ctr == null ? "—" : l.ctr + "&nbsp;%"}</td><td>${l.favorites}</td><td>${l.contacts}</td><td>${l.visits}</td>
+      <td><div class="row-actions">${opts.feature && l.status === "active" ? `<button class="btn ${l.featured ? "soft" : "ghost"} sm" data-feature="${l.id}" data-on="${l.featured ? 0 : 1}" aria-pressed="${l.featured}">${ic("star", 14)} ${l.featured ? "Retirer" : "Mettre en avant"}</button>` : ""}
+        ${l.status === "active" || l.status === "pending" ? `<button class="btn soft sm" data-slots="${l.id}">${ic("cal", 14)}</button>` : ""}</div></td></tr>`).join("")}</tbody></table></div>`;
+}
+async function agencyPro(tab, params) {
+  const u = state.user;
+  if (!u) throw Object.assign(new Error("Connexion requise"), { status: 401 });
+  if (!u.agency) throw new Error("Espace réservé aux membres d'une agence. Les agences sont ouvertes par l'équipe Ndaku.");
+  const ag = await api("/api/agency"), mgr = ag.my_role === "manager";
+  const tabs = PRO_TABS.filter(t => !t[3] || mgr);
+  if (!tabs.some(t => t[0] === tab)) tab = "apercu";
+  const days = [7, 30, 90].includes(+params.days) ? +params.days : 30;
+  $("#view").innerHTML = `<div class="wrap page pro-space"><div class="pro-head">${agencyLogo(ag, "lg")}<div><h1>${esc(ag.name)}</h1><span class="hint">${mgr ? "Gérant" : "Agent"} · <a href="#/agence/${esc(ag.slug)}">Voir la page publique</a></span></div>
+      <a class="btn" href="#/new" style="margin-left:auto">${ic("plus", 16)} Publier un bien</a></div>
+    <div class="pro-layout"><nav class="pro-nav">${tabs.map(([k, l, i]) => `<a class="${k === tab ? "on" : ""}" href="#/agence-pro/${k}">${ic(i, 18)} ${l}</a>`).join("")}</nav><section id="pro">${SK.rows(5)}</section></div>
+    <p class="hint mobile-only">${ic("alert", 14)} L'espace agence est conçu pour un ordinateur ; il reste utilisable sur téléphone.</p></div>`;
+  const box = $("#pro");
+  if (tab === "apercu") {
+    const r = await api(mgr ? `/api/agency/stats?days=${days}` : `/api/agency/listings?days=${days}`);
+    box.innerHTML = `<div class="sec-head"><h2>Performances sur ${days} jours</h2>${periodPicker(days, "#/agence-pro/apercu")}</div>${statTiles(r.totals, r.response)}${dailyCharts(r.daily)}
+      ${mgr && r.agents?.length ? `<h2 class="chart-t">Par agent</h2><div class="table-wrap"><table class="tbl"><thead><tr><th>Agent</th><th>Biens en ligne</th><th>Affichages</th><th>Vues</th><th>Contacts</th><th>Visites</th><th>Réponse</th></tr></thead><tbody>
+        ${r.agents.map(a => `<tr><td><a href="#/hote/${a.id}">${esc(a.name)}</a></td><td>${a.listings}</td><td>${a.impressions}</td><td>${a.views}</td><td>${a.contacts}</td><td>${a.visits}</td><td>${fmtMinutes(a.response.response_minutes)}${a.response.response_rate != null ? ` · ${a.response.response_rate} %` : ""}</td></tr>`).join("")}</tbody></table></div>` : ""}
+      <h2 class="chart-t">Biens les plus vus</h2>${listingStatsTable(r.items.slice(0, 5))}`;
+    box.addEventListener("mousemove", e => { const h = e.target.closest("[data-tip]"); chartTip(e, h && h.dataset.tip); });
+    box.addEventListener("mouseleave", e => chartTip(e, ""));
+    cleanup.push(() => chartTip({}, ""));
+  } else if (tab === "annonces") {
+    const r = await api(`/api/agency/listings?days=${days}`);
+    const agent = params.agent ? +params.agent : 0, items = r.items.filter(l => !agent || l.owner_id === agent);
+    box.innerHTML = `<div class="sec-head"><h2>Annonces de l'agence${mgr ? "" : " (les vôtres)"}</h2>${periodPicker(days, `#/agence-pro/annonces${agent ? `?agent=${agent}` : ""}`)}</div>
+      ${mgr ? `<p class="hint">${ic("star", 14)} ${ag.featured_count} / ${ag.featured_quota} biens mis en avant (affichés en premier sur votre page et mieux classés dans la recherche).</p>
+        <div class="row-actions" style="margin-bottom:12px"><a class="chip-btn ${agent ? "" : "on"}" href="#/agence-pro/annonces">Tous les agents</a>${ag.members.map(m => `<a class="chip-btn ${agent === m.id ? "on" : ""}" href="#/agence-pro/annonces?agent=${m.id}">${esc(m.name)}</a>`).join("")}</div>` : ""}
+      ${listingStatsTable(items, { agents: mgr ? ag.members : null, manager: mgr, feature: mgr })}`;
+    box.onchange = async e => {
+      const s = e.target.closest("[data-assign]"); if (!s) return;
+      try { await api(`/api/agency/listings/${s.dataset.assign}/assign`, { json: { user_id: +s.value } }); toast("Agent responsable modifié : les discussions en cours le suivent."); } catch (x) { toast(x.message); route(); }
+    };
+  } else if (tab === "equipe") {
+    box.innerHTML = `<h2>Équipe · ${ag.members.length} membre${ag.members.length > 1 ? "s" : ""}</h2>
+      <div class="table-wrap"><table class="tbl"><thead><tr><th></th><th>Membre</th><th>Rôle</th><th>Titre</th><th>Biens</th><th></th></tr></thead><tbody>
+      ${ag.members.map(m => `<tr><td>${avatar(m.avatar, m.name)}</td><td><b>${esc(m.name)}</b><br><span class="hint">${esc(m.email)}</span>${m.suspended ? ' <span class="pill rejected">suspendu</span>' : ""}</td>
+        <td><select data-mrole="${m.id}" aria-label="Rôle"><option value="agent" ${m.role === "agent" ? "selected" : ""}>Agent</option><option value="manager" ${m.role === "manager" ? "selected" : ""}>Gérant</option></select></td>
+        <td><input class="mtitle" data-mtitle="${m.id}" value="${esc(m.title)}" maxlength="60" placeholder="Ex. Agent senior" aria-label="Titre"></td><td>${m.listings}</td>
+        <td>${m.id === u.id ? '<span class="hint">vous</span>' : `<button class="btn danger sm" data-mremove="${m.id}">Retirer</button>`}</td></tr>`).join("")}</tbody></table></div>
+      <h2 class="chart-t">Accréditer un agent</h2><p class="hint">L'agent doit avoir (ou créer) un compte Ndaku avec cette adresse, puis accepter l'invitation depuis ses paramètres. Son adresse doit être confirmée (ou connexion Google).</p>
+      <form id="invf" class="adm-search"><input name="email" type="email" required placeholder="agent@exemple.cd" aria-label="E-mail de l'agent"><select name="role" aria-label="Rôle"><option value="agent">Agent</option><option value="manager">Gérant</option></select><button class="btn sm">${ic("send", 15)} Inviter</button></form>
+      ${ag.invites?.length ? `<ul class="slot-list">${ag.invites.map(i => `<li><span>${ic("clock", 15)} <b>${esc(i.email)}</b> <span class="hint">${i.role === "manager" ? "gérant" : "agent"} · invité le ${when(i.created_at)}</span></span><button class="linkish" data-irevoke="${i.id}">Annuler</button></li>`).join("")}</ul>` : ""}`;
+    $("#invf").onsubmit = async e => { e.preventDefault(); try { const r = await api("/api/agency/invites", { json: Object.fromEntries(new FormData(e.target)) }); toast(r.existing_account ? "Invitation envoyée : la personne est prévenue." : "Invitation enregistrée : elle apparaîtra dès que la personne créera son compte."); route(); } catch (x) { toast(x.message); } };
+    box.onchange = async e => {
+      const r_ = e.target.closest("[data-mrole]"), t_ = e.target.closest("[data-mtitle]");
+      try {
+        if (r_) await api(`/api/agency/members/${r_.dataset.mrole}`, { method: "PATCH", json: { role: r_.value } });
+        if (t_) await api(`/api/agency/members/${t_.dataset.mtitle}`, { method: "PATCH", json: { title: t_.value } });
+        toast("Modification enregistrée");
+      } catch (x) { toast(x.message); route(); }
+    };
+  } else if (tab === "discussions") {
+    const r = await api("/api/agency/conversations"), cid = +params.id || 0;
+    box.innerHTML = `<h2>Discussions des biens de l'agence</h2><p class="hint">Lecture seule : chaque agent répond à ses clients. Votre consultation est enregistrée.</p>
+      <div class="sup-layout"><div class="sup-list">${r.items.map(c => `<a class="conv ${c.id === cid ? "on" : ""}" href="#/agence-pro/discussions?id=${c.id}"><div class="t"><b>${esc(c.client)} → ${esc(c.agent)}</b><span>${esc(c.title)}</span><span>${when(c.last_at)} ${c.answered ? `· ${ic("check", 12)} répondu` : '· <b class="late">en attente de réponse</b>'}</span></div></a>`).join("") || '<p class="hint">Aucune discussion.</p>'}</div>
+      <div class="sup-thread" id="supT">${cid ? SK.chat() : '<div class="chat-empty"><p>Choisissez une discussion.</p></div>'}</div></div>`;
+    if (cid) {
+      const c = await api(`/api/agency/conversations/${cid}`);
+      $("#supT").innerHTML = `<div class="thread-h"><div class="t"><b>${esc(c.client)} ↔ ${esc(c.agent)}</b><a href="#/listing/${c.listing_id}">${esc(c.title)}</a></div></div>
+        <div class="msgs">${c.messages.map(m => `<div class="bubble ${m.from_agent ? "mine" : ""} ${m.kind !== "text" ? esc(m.kind) : ""}">${esc(m.body)}<time>${hour(m.created_at)} · ${when(m.created_at)}</time></div>`).join("")}</div>`;
+    }
+  } else if (tab === "profil") {
+    box.innerHTML = `<h2>Profil public de l'agence</h2><div class="profile-head">${agencyLogo(ag, "xl")}<div><label class="btn soft sm" for="lg-f">${ic("camera", 15)} Changer le logo</label><input id="lg-f" type="file" accept="image/jpeg,image/png,image/webp" class="sr"><p class="hint">Carré, fond clair de préférence.</p></div></div>
+      <form id="apf" class="form"><div class="field"><label for="ap-d">Présentation</label><textarea id="ap-d" name="description" maxlength="2000" style="min-height:120px">${esc(ag.description)}</textarea></div>
+        <div class="cols"><div class="field"><label for="ap-p">Téléphone public</label><input id="ap-p" name="phone" value="${esc(ag.phone)}" maxlength="30"></div><div class="field"><label for="ap-e">E-mail public</label><input id="ap-e" name="email" type="email" value="${esc(ag.email)}" maxlength="120"></div></div>
+        <div class="cols"><div class="field"><label for="ap-w">Site web (https://…)</label><input id="ap-w" name="website" value="${esc(ag.website)}" maxlength="200"></div><div class="field"><label for="ap-c">Ville</label><input id="ap-c" name="city" value="${esc(ag.city)}" maxlength="60"></div></div>
+        <div class="field"><label for="ap-a">Adresse du bureau</label><input id="ap-a" name="address" value="${esc(ag.address)}" maxlength="200"></div>
+        <p class="hint">Nom, RCCM et identification nationale sont gérés par l'équipe Ndaku (vérifiés à la création). RCCM : ${esc(ag.rccm || "—")} · Id. Nat. : ${esc(ag.id_nat || "—")}</p>
+        <div class="err" id="apErr"></div><button class="btn">Enregistrer</button></form>`;
+    $("#apf").onsubmit = async e => { e.preventDefault(); try { await api("/api/agency", { method: "PATCH", json: Object.fromEntries(new FormData(e.target)) }); toast("Profil de l'agence enregistré"); } catch (x) { $("#apErr").textContent = x.message; } };
+    $("#lg-f").onchange = async e => { const f = e.target.files[0]; if (!f) return; try { const fd = new FormData(); fd.append("image", await shrink(f, 800)); await api("/api/agency/logo", { method: "POST", body: fd }); toast("Logo mis à jour"); route(); } catch (x) { toast(x.message); } };
+  }
+}
+
+/* ---------------------------------------------------------------- administration : pros */
+async function adminPros(box) {
+  const r = await api("/api/admin/agents");
+  box.innerHTML = `<p class="hint">Dossiers d'agents indépendants : vérifiez l'identité (visage du selfie = pièce = photo de profil) et l'authenticité des justificatifs professionnels avant de valider.</p>` +
+    (r.items.map(a => `<div class="block-sec kyc"><div class="row-actions" style="justify-content:space-between;align-items:flex-start">
+      <div class="hostrow">${avatar(a.avatar, a.name, "lg")}<div><b>${esc(a.name)}</b>${a.trade_name ? ` · ${esc(a.trade_name)}` : ""}<br><span class="hint">${esc(a.email)}${a.phone ? " · " + esc(a.phone) : ""} · dossier du ${when(a.created_at)}</span>
+        <br>N° professionnel : <b>${esc(a.license_no)}</b> · Zones : ${esc(a.zones)} · ${a.experience} an(s) d'expérience${a.motivation ? `<p class="desc">${esc(a.motivation)}</p>` : ""}</div></div>
+      <div class="row-actions"><button class="btn sm" data-agentdec="approve" data-id="${a.id}">Valider l'agent</button><button class="btn danger sm" data-agentdec="reject" data-id="${a.id}">Refuser</button></div></div>
+      <div class="kyc-docs multi">${(a.docs || []).map(d => `<figure><img src="/api/admin/agent-docs/${d.id}" alt="${esc(d.kind)}" loading="lazy"><figcaption>${{ id_doc: "Pièce d'identité", selfie: "Selfie avec la pièce", pro_doc: "Justificatif professionnel" }[d.kind] || esc(d.kind)}</figcaption></figure>`).join("")}</div></div>`).join("")
+      || `<div class="empty"><h3>${ic("checkc", 22)} Aucun dossier en attente</h3></div>`);
+}
+async function adminAgencies(box, params) {
+  if (params.id) {
+    const a = await api(`/api/admin/agencies/${+params.id}`);
+    box.innerHTML = `<a class="linkish" href="#/admin?tab=agencies">${ic("back", 15)} Toutes les agences</a>
+      <div class="sec-head" style="margin-top:12px"><h2>${esc(a.name)} ${a.status === "active" ? '<span class="pill active">active</span>' : '<span class="pill rejected">suspendue</span>'}</h2>
+        <div class="row-actions"><a class="btn ghost sm" href="#/agence/${esc(a.slug)}">Page publique</a><button class="btn ${a.status === "active" ? "danger" : ""} sm" data-agstatus="${a.status === "active" ? "suspended" : "active"}" data-id="${a.id}">${a.status === "active" ? "Suspendre l'agence" : "Réactiver"}</button></div></div>
+      <form id="aef" class="form">${agencyFields(a)}<div class="field"><label>Biens « mis en avant » autorisés</label><input name="featured_quota" type="number" min="0" max="100" value="${a.featured_quota}"></div><div class="err" id="aeErr"></div><button class="btn">Enregistrer</button></form>
+      <h2 class="chart-t">Membres</h2><ul class="slot-list">${a.members.map(m => `<li><span><a href="#/admin?tab=accounts&id=${m.id}"><b>${esc(m.name)}</b></a> <span class="hint">${esc(m.email)}</span></span><span class="pill">${m.role === "manager" ? "gérant" : "agent"}</span></li>`).join("")}</ul>
+      <form id="amf" class="adm-search"><input name="email" type="email" required placeholder="E-mail d'un compte Ndaku" aria-label="E-mail"><select name="role"><option value="manager">Gérant</option><option value="agent">Agent</option></select><button class="btn sm">Ajouter</button></form>`;
+    $("#aef").onsubmit = async e => { e.preventDefault(); const d = Object.fromEntries(new FormData(e.target)); d.featured_quota = +d.featured_quota; try { await api(`/api/admin/agencies/${a.id}`, { method: "PATCH", json: d }); toast("Agence mise à jour"); } catch (x) { $("#aeErr").textContent = x.message; } };
+    $("#amf").onsubmit = async e => { e.preventDefault(); try { await api(`/api/admin/agencies/${a.id}/members`, { json: Object.fromEntries(new FormData(e.target)) }); toast("Membre ajouté"); route(); } catch (x) { toast(x.message); } };
+    return;
+  }
+  const r = await api("/api/admin/agencies");
+  box.innerHTML = `<details class="create-agency" ${r.items.length ? "" : "open"}><summary class="btn">${ic("plus", 16)} Créer une agence</summary>
+      <form id="acf" class="form"><p class="hint">Créez l'agence <b>après avoir étudié ses documents</b> (RCCM, identification nationale, NIF, pièce du gérant, autorisation d'exercer). Le gérant doit déjà avoir un compte Ndaku.</p>
+        ${agencyFields({})}<div class="field"><label>E-mail du compte du gérant *</label><input name="manager_email" type="email" required></div><div class="err" id="acErr"></div><button class="btn">Créer l'agence</button></form></details>
+    ${r.items.length ? `<div class="table-wrap"><table class="tbl"><thead><tr><th></th><th>Agence</th><th>RCCM</th><th>Membres</th><th>Biens</th><th>État</th><th>Créée</th></tr></thead><tbody>${r.items.map(a => `<tr><td>${agencyLogo(a)}</td><td><a href="#/admin?tab=agencies&id=${a.id}"><b>${esc(a.name)}</b></a>${a.is_demo ? ' <span class="pill">démo</span>' : ""}<br><span class="hint">${esc(a.city)}</span></td><td>${esc(a.rccm)}</td><td>${a.members}</td><td>${a.listings}</td><td>${a.status === "active" ? '<span class="pill active">active</span>' : '<span class="pill rejected">suspendue</span>'}</td><td>${when(a.created_at)}</td></tr>`).join("")}</tbody></table></div>` : ""}`;
+  $("#acf").onsubmit = async e => { e.preventDefault(); try { const x = await api("/api/admin/agencies", { json: Object.fromEntries(new FormData(e.target)) }); toast("Agence créée"); go(`#/admin?tab=agencies&id=${x.id}`); } catch (x) { $("#acErr").textContent = x.message; } };
+}
+function agencyFields(a) {
+  const f = (k, l, req = "", type = "text", ph = "") => `<div class="field"><label>${l}${req ? " *" : ""}</label><input name="${k}" type="${type}" value="${esc(a[k] || "")}" ${req} placeholder="${ph}"></div>`;
+  return `<div class="cols">${f("name", "Nom de l'agence", "required")}${f("city", "Ville", "", "text", "Kinshasa")}</div>
+    <div class="cols3">${f("rccm", "RCCM", "required")}${f("id_nat", "Identification nationale")}${f("nif", "NIF")}</div>
+    <div class="cols">${f("phone", "Téléphone")}${f("email", "E-mail", "", "email")}</div><div class="cols">${f("website", "Site web", "", "text", "https://")}${f("address", "Adresse")}</div>
+    <div class="field"><label>Présentation</label><textarea name="description" maxlength="2000">${esc(a.description || "")}</textarea></div>
+    <div class="field"><label>Documents vérifiés (note interne) *</label><textarea name="docs_note" required maxlength="500" placeholder="Ex. RCCM, Id. Nat., NIF et carte du gérant vus le 03/11/2026 par …">${esc(a.docs_note || "")}</textarea></div>`;
+}
 /* ================================================================================ événements */
-const act = async (path, json, okMsg) => { try { await api(path, json === undefined ? { method: "POST" } : { json }); if (okMsg) toast(okMsg); route(); } catch (x) { toast(x.message); } };
+const act = async (path, json, okMsg, opts) => { try { await api(path, opts || (json === undefined ? { method: "POST" } : { json })); if (okMsg) toast(okMsg); route(); } catch (x) { toast(x.message); } };
 document.addEventListener("click", async e => {
   const t = e.target, a = t.closest("[data-act]")?.dataset.act;
   if (a === "login") return authModal("login");
@@ -1437,6 +1739,18 @@ document.addEventListener("click", async e => {
   const bk = t.closest("[data-book]"); if (bk) return bookModal(+bk.dataset.book, bk.dataset.when);
   const sc = t.closest("[data-slotcancel]"); if (sc) { if (confirm(sc.dataset.owner ? "Supprimer ce créneau ? Si un client l'a réservé, il sera prévenu." : "Annuler votre visite ?")) act(`/api/slots/${sc.dataset.slotcancel}/cancel`, undefined, "Créneau annulé."); return; }
   const da = t.closest("[data-delalert]"); if (da) { try { await api(`/api/alerts/${da.dataset.delalert}`, { method: "DELETE" }); drawAlerts(); toast("Alerte supprimée"); } catch (x) { toast(x.message); } return; }
+  const adec = t.closest("[data-agentdec]");
+  if (adec) { const note = adec.dataset.agentdec === "reject" ? prompt("Motif du refus (envoyé à l'agent) :", "Justificatif professionnel illisible ou non authentique.") : ""; if (note === null) return; return act(`/api/admin/agents/${adec.dataset.id}/decision`, { action: adec.dataset.agentdec, note }, "Décision enregistrée."); }
+  const ags = t.closest("[data-agstatus]");
+  if (ags) { if (!confirm(ags.dataset.agstatus === "suspended" ? "Suspendre l'agence ? Sa page et toutes ses annonces seront masquées." : "Réactiver l'agence ?")) return; return act(`/api/admin/agencies/${ags.dataset.id}`, null, "Agence mise à jour.", { method: "PATCH", json: { status: ags.dataset.agstatus } }); }
+  const ft = t.closest("[data-feature]");
+  if (ft) { try { await api(`/api/listings/${ft.dataset.feature}/feature`, { json: { featured: ft.dataset.on === "1" } }); toast(ft.dataset.on === "1" ? "Bien mis en avant" : "Mise en avant retirée"); route(); } catch (x) { toast(x.message); } return; }
+  const mr = t.closest("[data-mremove]");
+  if (mr) { if (!confirm("Retirer cet agent de l'agence ? Ses biens et discussions en cours vous seront attribués.")) return; try { await api(`/api/agency/members/${mr.dataset.mremove}`, { method: "DELETE" }); toast("Agent retiré"); route(); } catch (x) { toast(x.message); } return; }
+  const ir = t.closest("[data-irevoke]");
+  if (ir) { try { await api(`/api/agency/invites/${ir.dataset.irevoke}`, { method: "DELETE" }); route(); } catch (x) { toast(x.message); } return; }
+  const iv = t.closest("[data-invite]");
+  if (iv) { try { await api(`/api/agency/invites/${iv.dataset.id}/${iv.dataset.invite}`, { method: "POST" }); state.user = (await api("/api/auth/me")).user; renderHeader(); toast(iv.dataset.invite === "accept" ? "Bienvenue dans l'agence !" : "Invitation refusée"); iv.dataset.invite === "accept" ? go("#/agence-pro") : drawAgentBox(); } catch (x) { toast(x.message); } return; }
   const kd = t.closest("[data-kyc]");
   if (kd) { const note = kd.dataset.kyc === "reject" ? prompt("Motif du refus (envoyé à l'hôte) :", "Photos illisibles ou visage non concordant.") : ""; if (note === null) return; return act(`/api/admin/verifications/${kd.dataset.id}/decision`, { action: kd.dataset.kyc, note }); }
   const rep = t.closest("[data-report]"); if (rep) return reportModal(+rep.dataset.report);
