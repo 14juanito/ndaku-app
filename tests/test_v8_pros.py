@@ -3,7 +3,7 @@ import io
 
 import pytest
 
-from conftest import DB, PW, avatar_bytes, id_token, listing_payload, publish, register, upload, avenue
+from conftest import DB, avatar_bytes, id_token, listing_payload, register, upload, avenue
 from ndaku.db import pool
 
 AGENCY = {"name": "Kin Habitat Test", "rccm": "CD/KIN/RCCM/24-B-0001", "id_nat": "01-123-N45678",

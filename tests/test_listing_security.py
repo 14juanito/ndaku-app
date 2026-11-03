@@ -264,7 +264,7 @@ def test_demo_import_skips_failures_and_continues(app, monkeypatch, client):
         res = demo.create_demo(app.config["STORAGE"], source="commons", max_listings=3)
         from ndaku.db import close
         close(None)
-    assert res["done"] and not res["created"] and len(res["skipped"]) == len(demo.LISTINGS)
+    assert res["done"] and not res["created"] and len(res["skipped"]) == len(demo.LISTINGS) + len(demo.PRO_LISTINGS)
     assert set(calls) == {x[0] for x in demo.LISTINGS}  # toutes les villes tentées, pas seulement les 3 premières
 
 

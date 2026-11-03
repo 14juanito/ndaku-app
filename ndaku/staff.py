@@ -2,7 +2,7 @@
 from flask import Blueprint, abort, jsonify, request
 
 from .auth import body
-from .db import all_, one, run
+from .db import all_, one
 from .notify import flush_pending, notify
 from .security import audit, current_user, require
 
