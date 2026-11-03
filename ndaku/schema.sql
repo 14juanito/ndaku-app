@@ -385,3 +385,97 @@ ALTER TABLE host_reviews ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS moderator BOOLEAN NOT NULL DEFAULT FALSE;
 CREATE INDEX IF NOT EXISTS ix_events_time ON security_events (created_at DESC);
 CREATE INDEX IF NOT EXISTS ix_events_user ON security_events (user_id, created_at DESC);
+
+-- ============================================================ v8 : agents immobiliers et agences
+-- Rôle « agent » : agent indépendant (dossier validé par l'administration) ou agent d'une agence.
+ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
+ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('client','host','agent','admin'));
+-- Statut professionnel de l'agent indépendant : none → pending → approved | rejected
+ALTER TABLE users ADD COLUMN IF NOT EXISTS agent_status TEXT NOT NULL DEFAULT 'none'
+  CHECK (agent_status IN ('none','pending','approved','rejected'));
+ALTER TABLE users ADD COLUMN IF NOT EXISTS bio TEXT NOT NULL DEFAULT '';
+
+-- Agences : créées uniquement par l'administration de Ndaku, après étude de leurs documents
+CREATE TABLE IF NOT EXISTS agencies (
+  id           BIGSERIAL PRIMARY KEY,
+  slug         TEXT NOT NULL UNIQUE,
+  name         TEXT NOT NULL,
+  description  TEXT NOT NULL DEFAULT '',
+  logo_url     TEXT,
+  logo_key     TEXT,
+  phone        TEXT NOT NULL DEFAULT '',
+  email        TEXT NOT NULL DEFAULT '',
+  website      TEXT NOT NULL DEFAULT '',
+  address      TEXT NOT NULL DEFAULT '',
+  city         TEXT NOT NULL DEFAULT '',
+  rccm         TEXT NOT NULL DEFAULT '',
+  id_nat       TEXT NOT NULL DEFAULT '',
+  nif          TEXT NOT NULL DEFAULT '',
+  docs_note    TEXT NOT NULL DEFAULT '',      -- ce que l'administration a vérifié (documents, date)
+  status       TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','suspended')),
+  is_demo      BOOLEAN NOT NULL DEFAULT FALSE,
+  featured_quota INT NOT NULL DEFAULT 10,
+  created_by   BIGINT REFERENCES users(id) ON DELETE SET NULL,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Membres : un utilisateur appartient au plus à une agence ; « manager » = gérant
+CREATE TABLE IF NOT EXISTS agency_members (
+  agency_id   BIGINT NOT NULL REFERENCES agencies(id) ON DELETE CASCADE,
+  user_id     BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  role        TEXT NOT NULL CHECK (role IN ('manager','agent')),
+  title       TEXT NOT NULL DEFAULT '',
+  joined_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (agency_id, user_id)
+);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_member_user ON agency_members (user_id);
+
+-- Invitations (accréditation) envoyées par le gérant à une adresse e-mail
+CREATE TABLE IF NOT EXISTS agency_invites (
+  id          BIGSERIAL PRIMARY KEY,
+  agency_id   BIGINT NOT NULL REFERENCES agencies(id) ON DELETE CASCADE,
+  email       TEXT NOT NULL,
+  role        TEXT NOT NULL DEFAULT 'agent' CHECK (role IN ('manager','agent')),
+  status      TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','accepted','declined','revoked')),
+  invited_by  BIGINT REFERENCES users(id) ON DELETE SET NULL,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_invite_pending ON agency_invites (agency_id, lower(email)) WHERE status = 'pending';
+
+-- Dossier d'agent indépendant : pièces justificatives examinées par l'administration
+CREATE TABLE IF NOT EXISTS agent_applications (
+  id            BIGSERIAL PRIMARY KEY,
+  user_id       BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  trade_name    TEXT NOT NULL DEFAULT '',
+  license_no    TEXT NOT NULL DEFAULT '',     -- RCCM, patente ou carte professionnelle
+  zones         TEXT NOT NULL DEFAULT '',
+  experience    INT NOT NULL DEFAULT 0,
+  motivation    TEXT NOT NULL DEFAULT '',
+  status        TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','approved','rejected')),
+  note          TEXT NOT NULL DEFAULT '',
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  decided_at    TIMESTAMPTZ,
+  decided_by    BIGINT REFERENCES users(id) ON DELETE SET NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_agentapp_pending ON agent_applications (user_id) WHERE status = 'pending';
+CREATE TABLE IF NOT EXISTS agent_documents (
+  id              BIGSERIAL PRIMARY KEY,
+  application_id  BIGINT NOT NULL REFERENCES agent_applications(id) ON DELETE CASCADE,
+  kind            TEXT NOT NULL,                -- id_doc | selfie | pro_doc
+  data            BYTEA                         -- effacé après décision pour id_doc/selfie
+);
+
+-- Annonces publiées par un professionnel
+ALTER TABLE listings ADD COLUMN IF NOT EXISTS agency_id BIGINT REFERENCES agencies(id) ON DELETE SET NULL,
+                     ADD COLUMN IF NOT EXISTS mandate TEXT CHECK (mandate IN ('proprietaire','simple','exclusif')),
+                     ADD COLUMN IF NOT EXISTS agency_fee TEXT,
+                     ADD COLUMN IF NOT EXISTS featured BOOLEAN NOT NULL DEFAULT FALSE;
+CREATE INDEX IF NOT EXISTS ix_listings_agency ON listings (agency_id) WHERE agency_id IS NOT NULL;
+
+-- Affichages dans les résultats (agrégés par jour) : base du taux de clic
+CREATE TABLE IF NOT EXISTS listing_impressions (
+  listing_id  BIGINT NOT NULL REFERENCES listings(id) ON DELETE CASCADE,
+  day         DATE NOT NULL DEFAULT CURRENT_DATE,
+  n           INT NOT NULL DEFAULT 0,
+  PRIMARY KEY (listing_id, day)
+);

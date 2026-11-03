@@ -42,6 +42,9 @@ def stats():
         (SELECT COUNT(*) FROM user_reports WHERE status='open')::int AS user_reports,
         (SELECT COUNT(*) FROM id_verifications WHERE status='pending')::int AS kyc,
         (SELECT COUNT(*) FROM places WHERE status='pending')::int AS places,
+        (SELECT COUNT(*) FROM agent_applications WHERE status='pending')::int AS agent_apps,
+        (SELECT COUNT(*) FROM agencies WHERE status='active')::int AS agencies,
+        (SELECT COUNT(*) FROM users WHERE role='agent')::int AS agents,
         (SELECT COUNT(*) FROM conversations WHERE created_at > now() - interval '7 days')::int AS conversations_7d,
         (SELECT COUNT(*) FROM messages WHERE created_at > now() - interval '7 days')::int AS messages_7d,
         (SELECT COUNT(*) FROM visit_slots WHERE status='booked' AND booked_at > now() - interval '7 days')::int AS visits_7d""")
@@ -52,7 +55,7 @@ def stats():
 
 
 # ------------------------------------------------------------------------ comptes
-FILTERS = {"all": "TRUE", "host": "u.role='host'", "client": "u.role='client'", "admin": "u.role='admin'",
+FILTERS = {"all": "TRUE", "host": "u.role='host'", "agent": "u.role='agent'", "client": "u.role='client'", "admin": "u.role='admin'",
            "moderator": "u.moderator", "verified": "u.verified", "suspended": "u.suspended_at IS NOT NULL",
            "reported": "EXISTS (SELECT 1 FROM user_reports r WHERE r.target_id=u.id AND r.status='open')"}
 

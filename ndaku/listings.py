@@ -31,6 +31,7 @@ REPORT_CATEGORIES = {
 }
 MIN_IMAGES, MAX_IMAGES = 3, 10
 MAX_LISTINGS_PER_DAY = 5
+MAX_LISTINGS_PER_DAY_PRO = 25
 REPORTS_TO_HIDE = 3
 MAX_KM_FROM_COMMUNE = 20
 DRC_BOUNDS = (-13.6, 11.9, 5.6, 31.5)  # sud, ouest, nord, est
@@ -44,16 +45,20 @@ PLACE_FILTERS = ("province_id", "city_id", "commune_id", "quartier_id", "avenue_
 BASE_SQL = """
 SELECT l.*, l.price::float8 AS price_f, extract(epoch FROM l.created_at)::float8 AS created_ts,
        u.name AS host_name, u.verified AS host_verified, u.avatar_url AS host_avatar, u.host_rating_count,
+       u.role AS host_role, ag.name AS agency_name, ag.slug AS agency_slug, ag.logo_url AS agency_logo,
        CASE WHEN u.host_rating_count > 0 THEN ROUND(u.host_rating_sum::numeric / u.host_rating_count, 2)::float8
             END AS host_rating,
        CASE WHEN l.rating_count > 0 THEN ROUND(l.rating_sum::numeric / l.rating_count, 2)::float8 END AS rating,
        l.rating_count AS reviews_count,
        ROUND(((3 * 3.5 + l.rating_sum)::numeric / (3 + l.rating_count) + 0.05 * l.fav_count
-             + CASE WHEN u.verified THEN 0.3 ELSE 0 END), 2)::float8 AS score
+             + CASE WHEN u.verified THEN 0.3 ELSE 0 END + CASE WHEN l.featured THEN 0.4 ELSE 0 END), 2)::float8 AS score
 FROM listings l
 JOIN users u ON u.id = l.owner_id
+LEFT JOIN agencies ag ON ag.id = l.agency_id
 """
-VISIBLE = "l.status = 'active' AND u.suspended_at IS NULL"
+# Une agence suspendue disparaît avec ses annonces ; sous-requête autonome (utilisable sans la jointure).
+VISIBLE = ("l.status = 'active' AND u.suspended_at IS NULL AND (l.agency_id IS NULL OR EXISTS "
+           "(SELECT 1 FROM agencies ag2 WHERE ag2.id = l.agency_id AND ag2.status = 'active'))")
 
 
 def storage():
@@ -73,13 +78,21 @@ def card(r, favs=()):
             "reviews_count": r["reviews_count"], "score": r["score"], "cover": r["cover_url"],
             "host_verified": r["host_verified"], "favorite": r["id"] in favs, "created_at": r["created_ts"],
             "is_demo": r["is_demo"], "lat": approx(r["lat"]), "lng": approx(r["lng"]),
-            "elec_score": r["elec_score"], "water_score": r["water_score"], "access_score": r["access_score"]}
+            "elec_score": r["elec_score"], "water_score": r["water_score"], "access_score": r["access_score"],
+            "featured": r["featured"], "pro": r["host_role"] == "agent",
+            "agency": {"slug": r["agency_slug"], "name": r["agency_name"], "logo": r["agency_logo"]} if r["agency_slug"] else None}
+
+
+def _agency_manager_of(u, r):
+    return bool(r["agency_id"] and one("""SELECT 1 FROM agency_members m JOIN agencies a ON a.id=m.agency_id
+                                          WHERE m.user_id=%s AND m.agency_id=%s AND m.role='manager' AND a.status='active'""",
+                                       (u["id"], r["agency_id"])))
 
 
 def owned_listing(lid):
     u = current_user()
     r = one("SELECT * FROM listings WHERE id=%s", (lid,))
-    if not r or (r["owner_id"] != u["id"] and u["role"] != "admin"):
+    if not r or (r["owner_id"] != u["id"] and u["role"] != "admin" and not _agency_manager_of(u, r)):
         abort(404, "Annonce introuvable.")  # 404 plutôt que 403 : ne révèle pas l'existence
     return r
 
@@ -182,7 +195,9 @@ def get_listing(lid):
         abort(404, "Annonce introuvable.")
     is_staff = bool(u and (u["role"] == "admin" or u["moderator"] or u["id"] == r["owner_id"]))
     if (r["status"] != "active" or one("SELECT 1 FROM users WHERE id=%s AND suspended_at IS NOT NULL",
-                                        (r["owner_id"],))) and not is_staff:
+                                        (r["owner_id"],))
+            or (r["agency_id"] and not one("SELECT 1 FROM agencies WHERE id=%s AND status='active'", (r["agency_id"],)))) \
+            and not is_staff:
         abort(404, "Annonce introuvable.")
     favs = {lid} if u and one("SELECT 1 FROM favorites WHERE user_id=%s AND listing_id=%s", (u["id"], lid)) else set()
     d = card(r, favs)
@@ -193,10 +208,12 @@ def get_listing(lid):
              address=(f"{r['avenue']} n° {r['house_number']}" + (f", {r['unit']}" if r["unit"] else "")
                       if exact and r["house_number"] else None),
              street=street, exact_location=exact, access_type=r["access_type"], rain_access=r["rain_access"],
+             mandate=r["mandate"], agency_fee=r["agency_fee"],
              commune_id=r["commune_id"], city_id=r["city_id"],
              views=r["views"] if is_staff else None,
              host={"id": r["owner_id"], "name": r["host_name"], "verified": r["host_verified"],
-                   "avatar": r["host_avatar"], "rating": r["host_rating"], "reviews_count": r["host_rating_count"]},
+                   "avatar": r["host_avatar"], "rating": r["host_rating"], "reviews_count": r["host_rating_count"],
+                   "role": r["host_role"]},
              images=[i["url"] for i in imgs], credits=[i["credit"] for i in imgs if i["credit"]],
              reviews=all_("""SELECT r.rating, r.comment, extract(epoch FROM r.created_at)::float8 AS created_at, u.name,
                                     r.updated_at IS NOT NULL AS edited,
@@ -222,8 +239,10 @@ def get_listing(lid):
 
 # --------------------------------------------------------------------------- photos
 @bp.post("/uploads")
-@require("host", verified_email=True, avatar=True)
+@require("host", "agent", verified_email=True, avatar=True)
 def upload():
+    from .pros import require_publisher
+    require_publisher()
     """Une photo par requête (compatible limite 4,5 Mo de Vercel et apps mobiles).
     La photo est vérifiée contre TOUTES les photos existantes avant d'être stockée."""
     u = current_user()
@@ -250,7 +269,7 @@ def upload():
 
 
 @bp.delete("/uploads/<int:iid>")
-@require("host")
+@require("host", "agent")
 def delete_upload(iid):
     r = one("DELETE FROM images WHERE id=%s AND owner_id=%s AND listing_id IS NULL RETURNING storage_key",
             (iid, current_user()["id"]))
@@ -367,16 +386,28 @@ ADDRESS_TAKEN = "Cette adresse (avenue + numéro{}) est déjà publiée dans une
 
 
 @bp.post("/listings")
-@require("host", verified_email=True, avatar=True)
+@require("host", "agent", verified_email=True, avatar=True)
 def create_listing():
+    from .pros import MANDATES, require_publisher
     u, d = current_user(), body()
+    agency_id = require_publisher()
+    pro = u["role"] == "agent"
+    quota = MAX_LISTINGS_PER_DAY_PRO if pro else MAX_LISTINGS_PER_DAY
     # Chaque tentative compte (même refusée) : empêche de sonder des adresses en rafale.
     rate_limit(f"listing-attempt:{u['id']}", 20, 86400, "Trop de tentatives de publication aujourd'hui.")
     run("SELECT pg_advisory_xact_lock(7002, %s)", (u["id"] % 2_000_000_000,))  # quota atomique par hôte
     if one("SELECT COUNT(*)::int AS n FROM listings WHERE owner_id=%s AND created_at > now() - interval '1 day'",
-           (u["id"],))["n"] >= MAX_LISTINGS_PER_DAY:
-        abort(429, f"Limite de {MAX_LISTINGS_PER_DAY} annonces par 24 h atteinte.")
+           (u["id"],))["n"] >= quota:
+        abort(429, f"Limite de {quota} annonces par 24 h atteinte.")
     data, loc = parse_listing(d), parse_location(d, u)
+    mandate, fee = d.get("mandate"), text(d, "agency_fee", 120)
+    if pro:  # un professionnel déclare son mandat et ses honoraires, affichés aux clients
+        if mandate not in MANDATES:
+            abort(400, "Précisez votre mandat : propriétaire direct, mandat simple ou exclusif.")
+        if len(fee) < 2:
+            abort(400, "Indiquez vos honoraires (ex. « 1 mois de loyer », « Aucun »).")
+    else:
+        mandate, fee = None, None
 
     for field in ("title", "description"):
         hit = af.find_contact_info(data[field])
@@ -439,9 +470,10 @@ def create_listing():
         row = one("""INSERT INTO listings (owner_id, title, description, deal, ptype, province, city, commune, quartier,
                        avenue, house_number, unit, address, province_id, city_id, commune_id, quartier_id, avenue_id,
                        lat, lng, price, bedrooms, bathrooms, surface, furnished, amenities, status, risk_score,
-                       risk_reasons, addr_key, cover_url, elec_score, water_score, access_score, access_type, rain_access)
+                       risk_reasons, addr_key, cover_url, elec_score, water_score, access_score, access_type, rain_access,
+                       agency_id, mandate, agency_fee)
                      VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,
-                             %s,%s,%s,%s,%s)
+                             %s,%s,%s,%s,%s,%s,%s,%s)
                      RETURNING id""",
                   (u["id"], data["title"], data["description"], data["deal"], data["ptype"], loc["province"]["name"],
                    loc["city"]["name"], loc["commune"]["name"], q["name"] if q else None, loc["avenue"]["name"],
@@ -450,7 +482,7 @@ def create_listing():
                    loc["avenue"]["id"], loc["lat"], loc["lng"], data["price"], data["bedrooms"], data["bathrooms"],
                    data["surface"], data["furnished"], json.dumps(data["amenities"]), status, score,
                    json.dumps(reasons), key, owned[ids[0]], data["elec_score"], data["water_score"],
-                   data["access_score"], data["access_type"], data["rain_access"]))
+                   data["access_score"], data["access_type"], data["rain_access"], agency_id, mandate, fee))
     except UniqueViolation:  # publication simultanée de la même adresse : l'index unique tranche
         abort(409, ADDRESS_TAKEN.format(unit_hint))
     for pos, iid in enumerate(ids):
@@ -493,7 +525,7 @@ def delete_listing(lid):
 
 
 @bp.get("/my/listings")
-@require("host")
+@require("host", "agent")
 def my_listings():
     uid = current_user()["id"]
     rows = all_(f"{BASE_SQL} WHERE l.owner_id=%s ORDER BY l.created_at DESC", (uid,))

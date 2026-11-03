@@ -42,7 +42,7 @@ def children():
 
 
 @bp.get("/places/mine")
-@require("host")
+@require("host", "agent")
 def mine():
     """Quartiers / avenues proposés par l'hôte et encore en attente de validation (visibles par lui seul)."""
     try:
@@ -54,7 +54,7 @@ def mine():
 
 
 @bp.post("/places")
-@require("host")
+@require("host", "agent")
 def suggest():
     """Un hôte ne trouve pas son quartier / avenue : il le propose. Visible par tous après validation."""
     u, d = current_user(), body()

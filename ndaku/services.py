@@ -169,7 +169,7 @@ def slots(lid):
 
 
 @bp.post("/listings/<int:lid>/slots")
-@require("host")
+@require("host", "agent")
 def add_slots(lid):
     u, d = current_user(), body()
     if not one("SELECT 1 FROM listings WHERE id=%s AND owner_id=%s AND status IN ('active','pending')", (lid, u["id"])):
@@ -265,9 +265,10 @@ def cancel(sid):
 @bp.get("/hosts/<int:hid>")
 def host_profile(hid):
     from .listings import BASE_SQL, VISIBLE, card
-    h = one("""SELECT id, name, avatar_url, verified, extract(epoch FROM created_at)::float8 AS since,
-                      host_rating_sum, host_rating_count FROM users WHERE id=%s AND role IN ('host','admin')
-                      AND suspended_at IS NULL""", (hid,))
+    from .pros import membership, response_stats
+    h = one("""SELECT id, name, avatar_url, verified, extract(epoch FROM created_at)::float8 AS since, role, bio,
+                      agent_status, host_rating_sum, host_rating_count FROM users WHERE id=%s
+                      AND role IN ('host','agent','admin') AND suspended_at IS NULL""", (hid,))
     if not h:
         abort(404, "Hôte introuvable.")
     u = current_user()
@@ -277,7 +278,11 @@ def host_profile(hid):
                       FROM host_reviews r JOIN users u ON u.id=r.user_id WHERE r.host_id=%s
                       ORDER BY r.created_at DESC LIMIT 30""", (hid,))
     n = h["host_rating_count"]
+    m = membership(hid) if h["role"] == "agent" else None
     return jsonify(id=h["id"], name=h["name"], avatar=h["avatar_url"], verified=h["verified"], since=h["since"],
+                   role=h["role"], bio=h["bio"], pro=h["role"] == "agent",
+                   agency={"slug": m["slug"], "name": m["name"], "logo": m["logo_url"]} if m and m["status"] == "active" else None,
+                   response=response_stats("c.host_id=%s", (hid,)),
                    rating=round(h["host_rating_sum"] / n, 2) if n else None, reviews_count=n,
                    listings=[card(r) for r in listings], reviews=reviews,
                    can_review=bool(u and _can_review_host(u["id"], hid)),
@@ -416,19 +421,6 @@ def record_view(lid, owner_id):
     if run("INSERT INTO listing_views (listing_id, viewer) VALUES (%s,%s) ON CONFLICT DO NOTHING",
            (lid, viewer)).rowcount:
         run("UPDATE listings SET views = views + 1 WHERE id=%s", (lid,))
-
-
-@bp.get("/my/stats")
-@require("host")
-def my_stats():
-    uid = current_user()["id"]
-    rows = all_("""SELECT l.id, l.title, l.status, l.views, l.fav_count,
-                          (SELECT COUNT(*) FROM conversations c WHERE c.listing_id=l.id)::int AS contacts,
-                          (SELECT COUNT(*) FROM visit_slots s WHERE s.listing_id=l.id AND s.status='booked')::int AS visits
-                   FROM listings l WHERE l.owner_id=%s ORDER BY l.created_at DESC""", (uid,))
-    days = all_("""SELECT v.day::text AS day, COUNT(*)::int AS n FROM listing_views v JOIN listings l ON l.id=v.listing_id
-                   WHERE l.owner_id=%s AND v.day > CURRENT_DATE - 30 GROUP BY 1 ORDER BY 1""", (uid,))
-    return jsonify(items=rows, daily=days)
 
 
 @bp.get("/stats/prices")

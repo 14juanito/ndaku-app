@@ -14,7 +14,7 @@ from .security import (audit, cfg, check_password, client_ip, current_user, end_
 
 bp = Blueprint("auth", __name__, url_prefix="/api/auth")
 LOCK_AFTER, LOCK_MINUTES = 5, 15
-ROLES_SELF_SERVICE = ("client", "host")
+ROLES_SELF_SERVICE = ("client", "host", "agent")  # agent : publication après validation du dossier
 
 
 def body():
@@ -29,6 +29,12 @@ def text(d, key, n):
     return v.strip()[:n] if isinstance(v, str) else ""
 
 
+def _agency_of(uid):
+    m = one("""SELECT a.slug, a.name, a.logo_url AS logo, a.status, m.role FROM agency_members m
+               JOIN agencies a ON a.id=m.agency_id WHERE m.user_id=%s""", (uid,))
+    return dict(m) if m else None
+
+
 def public_user(u):
     providers = [r["provider"] for r in
                  all_("SELECT provider FROM identities WHERE user_id=%s", (u["id"],))]
@@ -36,7 +42,8 @@ def public_user(u):
                       (c.client_id=%(u)s AND c.last_message_at > c.client_read_at)
                    OR (c.host_id=%(u)s AND c.last_message_at > c.host_read_at)""", {"u": u["id"]})["n"]
     return {"id": u["id"], "name": u["name"], "email": u["email"], "role": u["role"], "verified": u["verified"],
-            "moderator": u["moderator"],
+            "moderator": u["moderator"], "agent_status": u["agent_status"], "bio": u["bio"],
+            "agency": _agency_of(u["id"]) if u["role"] == "agent" else None,
             "email_verified": u["email_verified"], "has_password": u["pw_hash"] is not None, "providers": providers,
             "avatar": u["avatar_url"], "phone": u["phone"], "phone_verified": u["phone_verified"], "unread": unread,
             "notif_unread": one("SELECT COUNT(*)::int AS n FROM notifications WHERE user_id=%s AND read_at IS NULL",
@@ -110,7 +117,7 @@ def register():
     if len(name) < 2 or "@" not in email or "." not in email.rsplit("@", 1)[-1] or " " in email:
         abort(400, "Nom ou e-mail invalide.")
     if role not in ROLES_SELF_SERVICE:
-        abort(400, "Choisissez un type de compte : client ou hôte.")
+        abort(400, "Choisissez un type de compte : client, hôte ou agent immobilier.")
     problem = password_problem(pw, email, name)
     if problem:
         abort(400, problem)
@@ -347,6 +354,9 @@ def update_me():
     u, d = current_user(), body()
     name = text(d, "name", 80) if "name" in d else u["name"]
     phone = text(d, "phone", 30) if "phone" in d else u["phone"]
+    bio = text(d, "bio", 600) if "bio" in d else u["bio"]
+    if bio != u["bio"] and u["role"] not in ("host", "agent"):
+        abort(400, "La présentation est réservée aux hôtes et agents.")
     if len(name) < 2:
         abort(400, "Nom invalide.")
     if phone and not re.fullmatch(r"\+?[0-9 ().-]{6,30}", phone):
@@ -364,9 +374,9 @@ def update_me():
         abort(400, "Confirmez d'abord votre numéro de téléphone (code par SMS).")
     sms = prefs.get("sms", u["notify_sms"]) and phone_ok
     wa = prefs.get("whatsapp", u["notify_whatsapp"]) and phone_ok
-    run("""UPDATE users SET name=%s, phone=%s, notify_email=%s, notify_sms=%s, notify_whatsapp=%s,
+    run("""UPDATE users SET name=%s, phone=%s, bio=%s, notify_email=%s, notify_sms=%s, notify_whatsapp=%s,
                   phone_verified=%s WHERE id=%s""",
-        (name, phone, prefs.get("email", u["notify_email"]), sms, wa, phone_ok, u["id"]))
+        (name, phone, bio, prefs.get("email", u["notify_email"]), sms, wa, phone_ok, u["id"]))
     return jsonify(user=public_user(one("SELECT * FROM users WHERE id=%s", (u["id"],))))
 
 
@@ -391,6 +401,14 @@ def delete_account():
     keys = [r["storage_key"] for r in all_("SELECT storage_key FROM images WHERE owner_id=%s", (u["id"],))]
     if u["avatar_key"]:
         keys.append(u["avatar_key"])
+    # Un agent qui part laisse les biens de l'agence à un autre membre (gérant en priorité).
+    m = one("SELECT agency_id FROM agency_members WHERE user_id=%s", (u["id"],))
+    if m:
+        from .pros import transfer_listings
+        heir = one("""SELECT user_id FROM agency_members WHERE agency_id=%s AND user_id<>%s
+                      ORDER BY (role='manager') DESC, joined_at LIMIT 1""", (m["agency_id"], u["id"]))
+        if heir:
+            transfer_listings(m["agency_id"], u["id"], heir["user_id"])
     end_session()
     run("DELETE FROM users WHERE id=%s", (u["id"],))  # le reste suit par ON DELETE CASCADE
     audit("account_deleted", None, user=u["id"])
