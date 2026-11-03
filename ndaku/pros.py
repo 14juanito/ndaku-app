@@ -5,6 +5,7 @@ import re
 import unicodedata
 
 from flask import Blueprint, abort, current_app, g, jsonify, request
+from psycopg.errors import UniqueViolation
 
 from . import antifraud as af
 from .auth import body, text
@@ -101,6 +102,22 @@ def response_stats(where, args, days=90):
     rate = round(r["answered"] / r["total"] * 100) if r["total"] else None
     return {"conversations": r["total"], "response_rate": rate,
             "response_minutes": round(r["median_s"] / 60) if r["median_s"] is not None else None}
+
+
+def response_stats_by_host(where, args, days=90):
+    rows = all_(f"""WITH f AS (
+                      SELECT (SELECT min(m.created_at) FROM messages m WHERE m.conversation_id=c.id AND m.sender_id=c.client_id) AS q,
+                             c.id, c.host_id
+                      FROM conversations c JOIN listings l ON l.id=c.listing_id
+                      WHERE {where} AND c.created_at > now() - make_interval(days => %s))
+                    SELECT f.host_id, COUNT(*)::int AS total, COUNT(a.at)::int AS answered,
+                           percentile_cont(0.5) WITHIN GROUP (ORDER BY extract(epoch FROM a.at - f.q))::float8 AS median_s
+                    FROM f LEFT JOIN LATERAL (SELECT min(m.created_at) AS at FROM messages m
+                                              WHERE m.conversation_id=f.id AND m.sender_id=f.host_id AND m.created_at >= f.q) a ON TRUE
+                    WHERE f.q IS NOT NULL GROUP BY f.host_id""", (*args, days))
+    return {r["host_id"]: {"conversations": r["total"], "response_rate": round(r["answered"] / r["total"] * 100),
+                           "response_minutes": round(r["median_s"] / 60) if r["median_s"] is not None else None}
+            for r in rows}
 
 
 # ====================================================================== affichages
@@ -220,8 +237,11 @@ def apply_agent():
     if one("SELECT 1 FROM agent_applications WHERE user_id=%s AND status='pending'", (u["id"],)):
         abort(409, "Un dossier est déjà en cours d'examen.")
     rate_limit(f"agent-app:{u['id']}", 3, 86400, "Trop de dossiers envoyés aujourd'hui.")
-    a = one("""INSERT INTO agent_applications (user_id, trade_name, license_no, zones, experience, motivation)
-               VALUES (%s,%s,%s,%s,%s,%s) RETURNING id""", (u["id"], trade, license_no, zones, experience, motivation))
+    try:
+        a = one("""INSERT INTO agent_applications (user_id, trade_name, license_no, zones, experience, motivation)
+                   VALUES (%s,%s,%s,%s,%s,%s) RETURNING id""", (u["id"], trade, license_no, zones, experience, motivation))
+    except UniqueViolation:  # double envoi simultané : l'index unique tranche
+        abort(409, "Un dossier est déjà en cours d'examen.")
     for kind, data in docs:
         run("INSERT INTO agent_documents (application_id, kind, data) VALUES (%s,%s,%s)", (a["id"], kind, data))
     run("UPDATE users SET agent_status='pending' WHERE id=%s", (u["id"],))
@@ -307,7 +327,10 @@ def answer_invite(iid, action):
         abort(403, "Cette agence est suspendue.")
     if membership(u["id"]):
         abort(409, "Vous faites déjà partie d'une agence.")
-    run("INSERT INTO agency_members (agency_id, user_id, role) VALUES (%s,%s,%s)", (inv["agency_id"], u["id"], inv["role"]))
+    try:
+        run("INSERT INTO agency_members (agency_id, user_id, role) VALUES (%s,%s,%s)", (inv["agency_id"], u["id"], inv["role"]))
+    except UniqueViolation:
+        abort(409, "Vous faites déjà partie d'une agence.")
     run("UPDATE agency_invites SET status='accepted' WHERE id=%s", (iid,))
     run("UPDATE users SET role='agent' WHERE id=%s", (u["id"],))
     audit("agency_joined", u["id"], agency=inv["agency_id"], role=inv["role"])
@@ -470,11 +493,30 @@ def agency_revoke(iid):
     return jsonify(ok=True)
 
 
-def transfer_listings(agency_id, from_uid, to_uid):
-    """Les annonces (et discussions en cours) d'un agent qui part restent à l'agence."""
-    run("""UPDATE conversations SET host_id=%s WHERE host_id=%s
-           AND listing_id IN (SELECT id FROM listings WHERE agency_id=%s AND owner_id=%s)""", (to_uid, from_uid, agency_id, from_uid))
-    run("UPDATE listings SET owner_id=%s WHERE agency_id=%s AND owner_id=%s", (to_uid, agency_id, from_uid))
+def _move_listing_ids(ids, from_uid, to_uid):
+    """Transfert complet : annonce, photos (sinon supprimées avec l'ancien compte) et discussions."""
+    if not ids:
+        return
+    run("UPDATE conversations SET host_id=%s WHERE host_id=%s AND listing_id = ANY(%s)", (to_uid, from_uid, ids))
+    run("UPDATE images SET owner_id=%s WHERE listing_id = ANY(%s)", (to_uid, ids))
+    run("UPDATE listings SET owner_id=%s WHERE id = ANY(%s)", (to_uid, ids))
+
+
+def transfer_listings(agency_id, from_uid, to_uid, keep_messages=False):
+    """Les annonces (et discussions en cours) d'un agent qui part restent à l'agence.
+    keep_messages : le compte va être supprimé ; ses réponses dans ces discussions sont conservées au nom de
+    l'agence (attribuées au repreneur) au lieu d'être effacées avec lui."""
+    ids = [r["id"] for r in all_("SELECT id FROM listings WHERE agency_id=%s AND owner_id=%s", (agency_id, from_uid))]
+    if keep_messages and ids:
+        run("""UPDATE messages SET sender_id=%s WHERE sender_id=%s
+               AND conversation_id IN (SELECT id FROM conversations WHERE listing_id = ANY(%s))""", (to_uid, from_uid, ids))
+    _move_listing_ids(ids, from_uid, to_uid)
+
+
+def leave_agency(uid):
+    """Après un départ : un agent sans dossier validé redevient hôte (particulier), comme avant d'être invité."""
+    run("UPDATE users SET role = CASE WHEN agent_status='approved' THEN 'agent' ELSE 'host' END WHERE id=%s AND role='agent'",
+        (uid,))
 
 
 @bp.patch("/agency/members/<int:uid>")
@@ -504,6 +546,7 @@ def agency_member_remove(uid):
     if not one("DELETE FROM agency_members WHERE agency_id=%s AND user_id=%s RETURNING user_id", (m["id"], uid)):
         abort(404, "Membre introuvable.")
     transfer_listings(m["id"], uid, me["id"])
+    leave_agency(uid)
     audit("agency_member_removed", me["id"], agency=m["id"], target=uid)
     notify(uid, "account", f"Vous ne faites plus partie de l'agence {m['name']}", "", "#/profile", external=False)
     return jsonify(ok=True)
@@ -534,8 +577,9 @@ def agency_stats():
         a["listings"] += x["status"] == "active"
         for k in ("impressions", "views", "contacts", "visits"):
             a[k] += x[k]
+    per_agent = response_stats_by_host("l.agency_id=%s", (m["id"],))
     for a in agents.values():
-        a["response"] = response_stats("l.agency_id=%s AND c.host_id=%s", (m["id"], a["id"]))
+        a["response"] = per_agent.get(a["id"], {"conversations": 0, "response_rate": None, "response_minutes": None})
     out["agents"] = sorted(agents.values(), key=lambda a: -a["contacts"])
     out["items"] = sorted(out["items"], key=lambda x: -x["views"])
     return jsonify(out)
@@ -551,8 +595,7 @@ def agency_assign(lid):
     l = one("SELECT owner_id FROM listings WHERE id=%s AND agency_id=%s", (lid, m["id"]))
     if not l:
         abort(404, "Annonce introuvable.")
-    run("UPDATE conversations SET host_id=%s WHERE listing_id=%s", (to, lid))
-    run("UPDATE listings SET owner_id=%s WHERE id=%s", (to, lid))
+    _move_listing_ids([lid], l["owner_id"], to)
     audit("agency_listing_assigned", current_user()["id"], listing_id=lid, target=to)
     notify(to, "listing", "Une annonce vous a été attribuée", "", f"#/listing/{lid}", external=False)
     return jsonify(ok=True)
@@ -578,8 +621,8 @@ def feature(lid):
     if on:
         if l["status"] != "active":
             abort(400, "Seule une annonce en ligne peut être mise en avant.")
-        n = one(f"SELECT COUNT(*)::int AS n FROM listings WHERE {scope} AND featured AND status='active' AND id<>%s",
-                (*sargs, lid))["n"]
+        run("SELECT pg_advisory_xact_lock(7004, %s)", (l["agency_id"] or -u["id"],))  # quota atomique
+        n = one(f"SELECT COUNT(*)::int AS n FROM listings WHERE {scope} AND featured AND id<>%s", (*sargs, lid))["n"]
         if n >= quota:
             abort(400, f"Limite de {quota} biens mis en avant atteinte : retirez-en un d'abord.")
     run("UPDATE listings SET featured=%s WHERE id=%s", (on, lid))

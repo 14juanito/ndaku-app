@@ -280,7 +280,7 @@ def host_profile(hid):
     n = h["host_rating_count"]
     m = membership(hid) if h["role"] == "agent" else None
     return jsonify(id=h["id"], name=h["name"], avatar=h["avatar_url"], verified=h["verified"], since=h["since"],
-                   role=h["role"], bio=h["bio"], pro=h["role"] == "agent",
+                   role=h["role"], bio=h["bio"], pro=bool(m) or h["agent_status"] == "approved",
                    agency={"slug": m["slug"], "name": m["name"], "logo": m["logo_url"]} if m and m["status"] == "active" else None,
                    response=response_stats("c.host_id=%s", (hid,)),
                    rating=round(h["host_rating_sum"] / n, 2) if n else None, reviews_count=n,

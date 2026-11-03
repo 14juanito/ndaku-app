@@ -46,6 +46,8 @@ BASE_SQL = """
 SELECT l.*, l.price::float8 AS price_f, extract(epoch FROM l.created_at)::float8 AS created_ts,
        u.name AS host_name, u.verified AS host_verified, u.avatar_url AS host_avatar, u.host_rating_count,
        u.role AS host_role, ag.name AS agency_name, ag.slug AS agency_slug, ag.logo_url AS agency_logo,
+       (u.role = 'agent' AND (u.agent_status = 'approved'
+          OR EXISTS (SELECT 1 FROM agency_members am WHERE am.user_id = u.id))) AS host_pro,
        CASE WHEN u.host_rating_count > 0 THEN ROUND(u.host_rating_sum::numeric / u.host_rating_count, 2)::float8
             END AS host_rating,
        CASE WHEN l.rating_count > 0 THEN ROUND(l.rating_sum::numeric / l.rating_count, 2)::float8 END AS rating,
@@ -79,7 +81,7 @@ def card(r, favs=()):
             "host_verified": r["host_verified"], "favorite": r["id"] in favs, "created_at": r["created_ts"],
             "is_demo": r["is_demo"], "lat": approx(r["lat"]), "lng": approx(r["lng"]),
             "elec_score": r["elec_score"], "water_score": r["water_score"], "access_score": r["access_score"],
-            "featured": r["featured"], "pro": r["host_role"] == "agent",
+            "featured": r["featured"], "pro": r["host_pro"],
             "agency": {"slug": r["agency_slug"], "name": r["agency_name"], "logo": r["agency_logo"]} if r["agency_slug"] else None}
 
 
@@ -213,7 +215,7 @@ def get_listing(lid):
              views=r["views"] if is_staff else None,
              host={"id": r["owner_id"], "name": r["host_name"], "verified": r["host_verified"],
                    "avatar": r["host_avatar"], "rating": r["host_rating"], "reviews_count": r["host_rating_count"],
-                   "role": r["host_role"]},
+                   "role": "agent" if r["host_pro"] else "host"},
              images=[i["url"] for i in imgs], credits=[i["credit"] for i in imgs if i["credit"]],
              reviews=all_("""SELECT r.rating, r.comment, extract(epoch FROM r.created_at)::float8 AS created_at, u.name,
                                     r.updated_at IS NOT NULL AS edited,
@@ -241,10 +243,10 @@ def get_listing(lid):
 @bp.post("/uploads")
 @require("host", "agent", verified_email=True, avatar=True)
 def upload():
-    from .pros import require_publisher
-    require_publisher()
     """Une photo par requête (compatible limite 4,5 Mo de Vercel et apps mobiles).
     La photo est vérifiée contre TOUTES les photos existantes avant d'être stockée."""
+    from .pros import require_publisher
+    require_publisher()
     u = current_user()
     rate_limit(f"upload:{u['id']}", 60, 3600, "Trop de photos envoyées. Réessayez dans une heure.")
     if one("SELECT COUNT(*)::int AS n FROM images WHERE owner_id=%s AND listing_id IS NULL", (u["id"],))["n"] >= 30:
@@ -506,7 +508,8 @@ def patch_listing(lid):
     if status == "active" and one("SELECT 1 FROM listings WHERE addr_key=%s AND id<>%s AND status IN ('active','pending')",
                                   (r["addr_key"], lid)):
         abort(409, ADDRESS_TAKEN.format(""))
-    run("UPDATE listings SET status=%s WHERE id=%s", (status, lid))
+    # Une annonce clôturée perd sa mise en avant (le quota ne compte que les annonces en vedette).
+    run("UPDATE listings SET status=%s, featured = featured AND %s WHERE id=%s", (status, status == "active", lid))
     return jsonify(ok=True)
 
 

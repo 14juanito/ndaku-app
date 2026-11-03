@@ -169,7 +169,8 @@ def test_invitations_and_membership(world, new_client):
     assert sql("SELECT owner_id FROM listings WHERE id=%s", (lid,))[0]["owner_id"] == uid("gerant@kinhabitat.cd")
     assert mgr.get(f"/api/conversations/{cid}").status_code == 200
     assert ag.get(f"/api/conversations/{cid}").status_code == 404
-    assert upload(ag, 44).status_code == 403  # n'est plus membre ni indépendant validé
+    me = ag.get("/api/auth/me").json["user"]
+    assert me["agency"] is None and me["role"] == "host"  # redevient particulier : plus rien au nom de l'agence
 
 
 def test_manager_scope_and_other_agency_isolation(world, new_client, keys):
@@ -239,3 +240,62 @@ def test_directory_and_account_deletion_keeps_agency_listings(world):
     # l'agent supprime son compte : le bien reste à l'agence (au gérant)
     assert ag.post("/api/auth/me/delete", json={"confirm": "SUPPRIMER"}).status_code == 200
     assert sql("SELECT owner_id FROM listings WHERE id=%s", (lid,))[0]["owner_id"] == uid("gerant@kinhabitat.cd")
+
+
+# ------------------------------------------------------------------ non-régressions (revue de code)
+def test_departing_agent_keeps_agency_photos_messages_and_manager(world):
+    boss, mgr, ag, cl = world
+    make_agency(boss)
+    mgr.post("/api/agency/invites", json={"email": "agent@kinhabitat.cd"})
+    ag.post(f"/api/agency/invites/{ag.get('/api/agent/application').json['invites'][0]['id']}/accept")
+    lid = mgr.post("/api/listings", json=pro_payload(mgr, (91, 92, 93), "Avenue G", mandate="simple", agency_fee="1 mois")).json["id"]
+    cid = cl.post(f"/api/listings/{lid}/conversation", json={"message": "Bonjour, toujours disponible ?"}).json["id"]
+    mgr.post(f"/api/conversations/{cid}/messages", json={"body": "Oui, passez samedi."})
+    # le seul gérant supprime son compte : l'agent reprend, devient gérant, rien n'est perdu
+    assert mgr.post("/api/auth/me/delete", json={"confirm": "SUPPRIMER"}).status_code == 200
+    heir = uid("agent@kinhabitat.cd")
+    assert sql("SELECT COUNT(*)::int AS n FROM images WHERE listing_id=%s AND owner_id=%s", (lid, heir))[0]["n"] == 3
+    msgs = ag.get(f"/api/conversations/{cid}").json["messages"]
+    assert [m["body"] for m in msgs] == ["Bonjour, toujours disponible ?", "Oui, passez samedi."]
+    assert ag.get("/api/auth/me").json["user"]["agency"]["role"] == "manager"
+    assert ag.get("/api/agency/stats").status_code == 200
+
+
+def test_removed_member_gets_host_role_back_and_photos_follow_reassign(world):
+    boss, mgr, ag, cl = world
+    make_agency(boss)
+    mgr.post("/api/agency/invites", json={"email": "agent@kinhabitat.cd"})
+    ag.post(f"/api/agency/invites/{ag.get('/api/agent/application').json['invites'][0]['id']}/accept")
+    lid = ag.post("/api/listings", json=pro_payload(ag, (94, 95, 96), "Avenue H", mandate="simple", agency_fee="1 mois")).json["id"]
+    assert mgr.post(f"/api/agency/listings/{lid}/assign", json={"user_id": uid("gerant@kinhabitat.cd")}).status_code == 200
+    assert sql("SELECT DISTINCT owner_id FROM images WHERE listing_id=%s", (lid,)) == [{"owner_id": uid("gerant@kinhabitat.cd")}]
+    mgr.delete(f"/api/agency/members/{uid('agent@kinhabitat.cd')}")
+    me = ag.get("/api/auth/me").json["user"]
+    assert me["role"] == "host" and me["agency"] is None
+    assert upload(ag, 97).status_code == 201  # peut de nouveau publier comme particulier
+
+
+def test_unvetted_agent_is_not_shown_as_professional(client, new_client):
+    register(client, "faux-agent@x.cd", "agent")
+    me = client.get("/api/auth/me").json["user"]
+    assert client.get(f"/api/hosts/{me['id']}").json["pro"] is False
+
+
+def test_featured_quota_counts_closed_then_reactivated(client, new_client, keys):
+    boss = new_client()
+    google(boss, keys, "boss@ndaku.test", "boss")
+    register(client, "indep@x.cd", "agent")
+    application(client)
+    boss.post(f"/api/admin/agents/{boss.get('/api/admin/agents').json['items'][0]['id']}/decision", json={"action": "approve"})
+    ids = []
+    for k in range(4):
+        r = client.post("/api/listings", json=pro_payload(client, (100 + 3 * k, 101 + 3 * k, 102 + 3 * k), f"Avenue Q{k}",
+                                                          mandate="simple", agency_fee="1 mois"))
+        assert r.status_code == 201, r.json
+        ids.append(r.json["id"])
+    for i in ids[:3]:
+        assert client.post(f"/api/listings/{i}/feature", json={"featured": True}).status_code == 200
+    assert client.patch(f"/api/listings/{ids[0]}", json={"status": "closed"}).status_code == 200
+    assert client.post(f"/api/listings/{ids[3]}/feature", json={"featured": True}).status_code == 200
+    client.patch(f"/api/listings/{ids[0]}", json={"status": "active"})
+    assert sql("SELECT COUNT(*)::int AS n FROM listings WHERE featured")[0]["n"] == 3  # jamais plus que le quota

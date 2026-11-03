@@ -398,17 +398,21 @@ def delete_account():
     for table, key in (("reviews", "listing_id"), ("host_reviews", "host_id")):
         for r in all_(f"SELECT {key} AS t FROM {table} WHERE user_id=%s", (u["id"],)):
             delete_own_review(table, key, r["t"], u["id"])
+    # Un agent qui part laisse les biens de l'agence (photos et discussions comprises) à un autre membre,
+    # gérant en priorité ; s'il était le seul gérant, le repreneur devient gérant.
+    m = one("SELECT agency_id, role FROM agency_members WHERE user_id=%s", (u["id"],))
+    if m:
+        from .pros import transfer_listings
+        heir = one("""SELECT user_id, role FROM agency_members WHERE agency_id=%s AND user_id<>%s
+                      ORDER BY (role='manager') DESC, joined_at LIMIT 1""", (m["agency_id"], u["id"]))
+        if heir:
+            transfer_listings(m["agency_id"], u["id"], heir["user_id"], keep_messages=True)
+            if m["role"] == "manager" and heir["role"] != "manager":
+                run("UPDATE agency_members SET role='manager' WHERE agency_id=%s AND user_id=%s", (m["agency_id"], heir["user_id"]))
+    # Clés lues après le transfert : seules les photos restées à l'utilisateur sont effacées.
     keys = [r["storage_key"] for r in all_("SELECT storage_key FROM images WHERE owner_id=%s", (u["id"],))]
     if u["avatar_key"]:
         keys.append(u["avatar_key"])
-    # Un agent qui part laisse les biens de l'agence à un autre membre (gérant en priorité).
-    m = one("SELECT agency_id FROM agency_members WHERE user_id=%s", (u["id"],))
-    if m:
-        from .pros import transfer_listings
-        heir = one("""SELECT user_id FROM agency_members WHERE agency_id=%s AND user_id<>%s
-                      ORDER BY (role='manager') DESC, joined_at LIMIT 1""", (m["agency_id"], u["id"]))
-        if heir:
-            transfer_listings(m["agency_id"], u["id"], heir["user_id"])
     end_session()
     run("DELETE FROM users WHERE id=%s", (u["id"],))  # le reste suit par ON DELETE CASCADE
     audit("account_deleted", None, user=u["id"])
